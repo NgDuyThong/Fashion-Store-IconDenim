@@ -32,11 +32,15 @@ function loadCorrelationMap() {
         const lastModified = stats.mtime.getTime();
         
         if (!correlationMap || !correlationMapLastLoaded || lastModified > correlationMapLastLoaded) {
-            console.log('📊 Đang load correlation map từ CoIUM...');
+            console.log('📊 Đang RELOAD correlation map từ CoIUM...');
+            console.log(`   📅 File modified: ${new Date(lastModified).toLocaleString()}`);
+            console.log(`   📅 Last loaded: ${correlationMapLastLoaded ? new Date(correlationMapLastLoaded).toLocaleString() : 'Never'}`);
             const data = fs.readFileSync(correlationMapPath, 'utf8');
             correlationMap = JSON.parse(data);
             correlationMapLastLoaded = lastModified;
             console.log(`✅ Đã load correlation map cho ${Object.keys(correlationMap).length} sản phẩm`);
+        } else {
+            console.log('✅ Sử dụng correlation map đã cache (không thay đổi)');
         }
         
         return correlationMap;
@@ -494,7 +498,7 @@ class CoHUIController {
                 isActivated: { $ne: false } // Lọc bỏ sản phẩm đã vô hiệu hóa
             }).limit(topN).lean();
 
-            // Nếu không đủ, lấy thêm cùng category (chỉ lấy sản phẩm đang hoạt động)
+            // Nếu không đủ, lấy thêm cùng category VÀ cùng targetID (chỉ lấy sản phẩm đang hoạt động)
             if (similarProducts.length < topN) {
                 const additionalProducts = await Product.find({
                     productID: { 
@@ -502,6 +506,7 @@ class CoHUIController {
                         $nin: similarProducts.map(p => p.productID)
                     },
                     categoryID: product.categoryID,
+                    targetID: product.targetID, // Thêm filter targetID
                     isActivated: { $ne: false } // Lọc bỏ sản phẩm đã vô hiệu hóa
                 }).limit(topN - similarProducts.length).lean();
                 
@@ -590,15 +595,38 @@ class CoHUIController {
                 return CoHUIController.getFallbackRecommendations(req, res, product, parseInt(topN));
             }
 
-            // Giới hạn số lượng recommendations
-            const limitedRecommendations = recommendedProducts.slice(0, parseInt(topN));
+            // ✅ FIX: Lấy NHIỀU hơn từ correlation map (topN * 3) để sau khi filter vẫn đủ
+            const extendedLimit = Math.min(recommendedProducts.length, parseInt(topN) * 3);
+            const limitedRecommendations = recommendedProducts.slice(0, extendedLimit);
 
-            // Lấy thông tin chi tiết từ DB (chỉ lấy sản phẩm đang hoạt động)
+            // Lấy thông tin chi tiết từ DB (chỉ lấy sản phẩm đang hoạt động VÀ cùng targetID)
             const productIDs = limitedRecommendations.map(r => r.productID);
             const fullProducts = await Product.find({ 
                 productID: { $in: productIDs },
+                targetID: product.targetID, // Chỉ lấy sản phẩm cùng giới tính
                 isActivated: { $ne: false } // Lọc bỏ sản phẩm đã vô hiệu hóa
             }).lean();
+            
+            console.log(`🎯 Filter: Sản phẩm #${productID} (targetID: ${product.targetID})`);
+            console.log(`   📊 Correlation map: ${recommendedProducts.length} sản phẩm tổng`);
+            console.log(`   📌 Lấy: ${extendedLimit} sản phẩm để filter`);
+            console.log(`   🔍 productIDs to query: ${productIDs.join(', ')}`);
+            console.log(`   ✅ Sau filter DB (targetID=${product.targetID}): ${fullProducts.length} sản phẩm`);
+            
+            // Debug: Hiển thị targetID của các sản phẩm trong correlation map
+            if (fullProducts.length < 3) {
+                const debugInfo = limitedRecommendations.slice(0, 5).map(rec => {
+                    const prod = fullProducts.find(p => p.productID === rec.productID);
+                    return {
+                        id: rec.productID,
+                        name: rec.name,
+                        targetID: rec.targetID,
+                        inDB: !!prod,
+                        matchGender: rec.targetID === product.targetID ? '✅' : '❌'
+                    };
+                });
+                console.log('   🔍 DEBUG: Top 5 từ correlation map:', debugInfo);
+            }
 
             // Map kết quả theo format mà ProductDetail.jsx mong đợi
             const recommendations = limitedRecommendations.map(rec => {
@@ -618,7 +646,9 @@ class CoHUIController {
                         targetID: fullProduct.targetID
                     }
                 };
-            }).filter(r => r !== null);
+            })
+            .filter(r => r !== null)
+            .slice(0, parseInt(topN)); // ✅ Giới hạn về topN sau khi filter
 
             // Thêm sản phẩm đang tìm vào đầu danh sách
             const searchedProduct = {

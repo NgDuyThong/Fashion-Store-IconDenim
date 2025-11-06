@@ -158,38 +158,124 @@ const ProductDetail = () => {
   // Fetch sản phẩm tương tự từ CoHUI API với fallback
   useEffect(() => {
     const fetchSimilarProducts = async () => {
-      if (!id || !product) return;
+      if (!id || !product) {
+        console.log('⏭️ Bỏ qua fetch similar products:', { id, hasProduct: !!product });
+        return;
+      }
       
       try {
+        // ✅ Reset state trước khi fetch mới
+        setSimilarProducts([]);
         setSimilarLoading(true);
+        console.log('🔄 BẮT ĐẦU fetch similar products cho sản phẩm #' + id);
         
         // Bước 1: Thử lấy từ CoHUI API (sản phẩm có tương quan cao)
         try {
           const cohuiResponse = await axiosInstance.get(`/api/cohui/bought-together/${id}`);
           
           if (cohuiResponse.data.success && cohuiResponse.data.recommendations && cohuiResponse.data.recommendations.length > 0) {
-            // Lọc bỏ sản phẩm hiện tại khỏi danh sách
-            const filtered = cohuiResponse.data.recommendations.filter(
-              item => item.productDetails && item.productDetails.productID !== parseInt(id)
+            // Debug: Log thông tin sản phẩm hiện tại
+            console.log('📌 Sản phẩm hiện tại:', {
+              productID: product.productID,
+              targetID: product.targetID,
+              'targetID type': typeof product.targetID,
+              target: product.target,
+              'target type': typeof product.target,
+              category: product.category
+            });
+            
+            // Debug: Log recommendations trước khi filter
+            console.log('📦 CoHUI recommendations (trước filter):', 
+              cohuiResponse.data.recommendations.map(item => ({
+                id: item.productDetails?.productID,
+                name: item.productDetails?.name,
+                targetID: item.productDetails?.targetID,
+                target: item.productDetails?.target
+              }))
             );
             
-            if (filtered.length > 0) {
-              console.log('✅ CoHUI: Tìm thấy', filtered.length, 'sản phẩm có tương quan cao');
+            // Lọc bỏ sản phẩm hiện tại và chỉ lấy sản phẩm cùng giới tính (targetID)
+            const filtered = cohuiResponse.data.recommendations.filter(item => {
+              if (!item.productDetails) return false;
+              if (item.productDetails.productID === parseInt(id)) return false;
+              
+              // ✅ FIX: Kiểm tra targetID - ưu tiên targetID (number), fallback sang target name (string)
+              // Xử lý cả trường hợp targetID là undefined hoặc string "undefined"
+              const currentTargetID = product.targetID && product.targetID !== 'undefined' 
+                ? parseInt(product.targetID) 
+                : null;
+              const itemTargetID = item.productDetails.targetID;
+              
+              console.log(`🔍 Checking #${item.productDetails.productID}:`, {
+                'item.targetID': itemTargetID,
+                'current.targetID': currentTargetID,
+                'item.target': item.productDetails.target,
+                'current.target': product.target,
+                'match by ID': currentTargetID && itemTargetID && itemTargetID === currentTargetID,
+                'match by name': product.target && item.productDetails.target && item.productDetails.target === product.target
+              });
+              
+              // So sánh theo targetID (nếu có)
+              if (currentTargetID && itemTargetID) {
+                return itemTargetID === currentTargetID;
+              }
+              
+              // Fallback: So sánh theo target name (string)
+              if (product.target && item.productDetails.target) {
+                return item.productDetails.target === product.target;
+              }
+              
+              // Nếu không có targetID và target → Cho qua (hiển thị tất cả)
+              return true;
+            });
+            
+            // Debug: Log sau khi filter
+            console.log('✅ CoHUI recommendations (sau filter):', 
+              filtered.map(item => ({
+                id: item.productDetails?.productID,
+                name: item.productDetails?.name,
+                targetID: item.productDetails?.targetID,
+                target: item.productDetails?.target
+              }))
+            );
+            
+            // Chỉ dùng CoHUI nếu có ĐỦ sản phẩm (ít nhất 2 sản phẩm cùng giới tính)
+            // ✅ Giảm từ 3 xuống 2 vì correlation_map đã được filter, số lượng ít hơn
+            if (filtered.length >= 2) {
+              console.log('✅ CoHUI: Tìm thấy', filtered.length, 'sản phẩm cùng giới tính → Sử dụng CoHUI');
               setSimilarProducts(filtered);
               return; // Đã có kết quả CoHUI, không cần fallback
+            } else if (filtered.length > 0) {
+              console.log('⚠️ CoHUI chỉ tìm thấy', filtered.length, 'sản phẩm cùng giới tính (< 2) → Chuyển sang fallback');
             }
           }
         } catch (cohuiError) {
           console.log('⚠️ CoHUI không có kết quả, chuyển sang fallback...');
         }
         
-        // Bước 2: Fallback - Lấy sản phẩm cùng category
-        console.log('🔄 Đang lấy sản phẩm cùng danh mục...');
+        // Bước 2: Fallback - Lấy sản phẩm cùng category và cùng giới tính
+        console.log('🔄 Đang lấy sản phẩm cùng danh mục và giới tính...', {
+          categoryID: product.categoryID,
+          targetID: product.targetID,
+          targetName: product.target,
+          apiParam: { target: product.targetID }
+        });
         const fallbackResponse = await axiosInstance.get('/api/products', {
           params: {
             categoryID: product.categoryID,
+            target: product.targetID, // Sử dụng 'target' thay vì 'targetID'
             limit: 10
           }
+        });
+        
+        console.log('📦 Fallback response:', {
+          total: fallbackResponse.data.products?.length,
+          products: fallbackResponse.data.products?.map(p => ({
+            id: p.productID,
+            name: p.name,
+            targetID: p.targetID,
+            target: p.target
+          }))
         });
         
         if (fallbackResponse.data.products) {
@@ -214,7 +300,7 @@ const ProductDetail = () => {
             .sort((a, b) => b.score - a.score)
             .slice(0, 6);
           
-          console.log('✅ Fallback: Tìm thấy', fallbackProducts.length, 'sản phẩm cùng danh mục');
+          console.log('✅ Fallback: Tìm thấy', fallbackProducts.length, 'sản phẩm cùng danh mục và giới tính');
           setSimilarProducts(fallbackProducts);
         } else {
           setSimilarProducts([]);
@@ -229,7 +315,7 @@ const ProductDetail = () => {
     };
 
     fetchSimilarProducts();
-  }, [id, product]);
+  }, [id, product]); // ✅ Cần cả id và product vì logic filter dùng product.targetID
 
   // Hàm lấy danh sách đánh giá từ API
   const fetchReviews = async () => {

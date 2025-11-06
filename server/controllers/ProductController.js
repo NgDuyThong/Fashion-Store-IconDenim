@@ -50,7 +50,16 @@ class ProductController {
             }
     
             // Xử lý target (Nam/Nữ)
-            if (target) matchStage.targetID = parseInt(target);
+            if (target) {
+                const targetValue = parseInt(target);
+                console.log('🎯 Filter by target:', {
+                    'req.query.target': target,
+                    'typeof target': typeof target,
+                    'parseInt(target)': targetValue,
+                    'isNaN': isNaN(targetValue)
+                });
+                matchStage.targetID = targetValue;
+            }
     
             // Xử lý category
             if (category && category !== 'Tất cả') {
@@ -285,6 +294,20 @@ class ProductController {
     
             // Thực hiện aggregate
             let products = await Product.aggregate(pipeline);
+
+            // 🔍 DEBUG: Kiểm tra kết quả filter theo target
+            if (target) {
+                console.log('✅ Kết quả filter theo targetID:', {
+                    'matchStage.targetID': matchStage.targetID,
+                    'Tổng sản phẩm': products.length,
+                    'Sample 3 sản phẩm đầu': products.slice(0, 3).map(p => ({
+                        productID: p.productID,
+                        name: p.name,
+                        targetID: p.targetID,
+                        target: p.target
+                    }))
+                });
+            }
     
             // Xử lý cloudinary links
             products = await Promise.all(

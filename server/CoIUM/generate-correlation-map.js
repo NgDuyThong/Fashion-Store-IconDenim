@@ -132,23 +132,38 @@ async function testProductRecommendations() {
         console.log('📝 Đang tạo file correlation_map.json cho server...');
         const serverCorrelationPath = path.join(__dirname, 'correlation_map.json');
         
-        // Thêm thông tin chi tiết cho mỗi recommendation
+        // Thêm thông tin chi tiết cho mỗi recommendation VÀ FILTER THEO GIỚI TÍNH
         const detailedCorrelations = {};
         for (const [productID, recIDs] of Object.entries(correlations)) {
-            detailedCorrelations[productID] = recIDs.map(recID => {
-                const recProduct = productMap[recID];
-                return {
-                    productID: recID,
-                    name: recProduct ? recProduct.name : 'Unknown',
-                    categoryID: recProduct ? recProduct.categoryID : null,
-                    targetID: recProduct ? recProduct.targetID : null,
-                    price: recProduct ? recProduct.price : 0
-                };
-            });
+            const sourceProduct = productMap[parseInt(productID)];
+            if (!sourceProduct) continue;
+            
+            // ✅ FILTER: Chỉ lấy sản phẩm cùng targetID (giới tính)
+            const filteredRecs = recIDs
+                .map(recID => productMap[recID])
+                .filter(recProduct => {
+                    if (!recProduct) return false;
+                    // Chỉ lấy sản phẩm cùng giới tính
+                    return recProduct.targetID === sourceProduct.targetID;
+                })
+                .map(recProduct => ({
+                    productID: recProduct.productID,
+                    name: recProduct.name,
+                    categoryID: recProduct.categoryID,
+                    targetID: recProduct.targetID,
+                    price: recProduct.price
+                }));
+            
+            detailedCorrelations[productID] = filteredRecs;
+            
+            // Log thống kê filter
+            if (recIDs.length !== filteredRecs.length) {
+                console.log(`   🔄 Sản phẩm #${productID}: ${recIDs.length} → ${filteredRecs.length} (sau filter giới tính)`);
+            }
         }
         
         fs.writeFileSync(serverCorrelationPath, JSON.stringify(detailedCorrelations, null, 2), 'utf8');
-        console.log(`✅ Đã tạo file: ${serverCorrelationPath}\n`);
+        console.log(`✅ Đã tạo file: ${serverCorrelationPath} (ĐÃ FILTER THEO GIỚI TÍNH)\n`);
 
     } catch (error) {
         console.error('❌ Lỗi:', error);
