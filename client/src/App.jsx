@@ -62,6 +62,9 @@ import Connect from "./pages/customer/connect/Connect";
 // Promotion Page
 import Promotion from "./pages/customer/promotion/Promotion";
 
+// Combo Page
+import ComboPage from "./pages/customer/combo/ComboPage";
+
 // Layouts
 import AdminLayout from './layouts/AdminLayout';
 import CustomerLayout from './layouts/CustomerLayout';
@@ -87,6 +90,7 @@ function App() {
               <Route path="new-arrivals" element={<NewArrivals />} />
               <Route path="tet-collection" element={<TetCollection />} />
               <Route path="product/:id" element={<ProductDetail />} />
+              <Route path="combo" element={<ComboPage />} />
               <Route path="cart" element={<AuthRoute><Cart /></AuthRoute>} />
               <Route path="checkout" element={<AuthRoute><Checkout /></AuthRoute>} />
               <Route path="wishlist" element={<AuthRoute><Wishlist /></AuthRoute>} />

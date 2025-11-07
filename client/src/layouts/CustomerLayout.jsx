@@ -40,6 +40,7 @@ const CustomerLayout = () => {
     { name: 'NAM', path: '/male' },
     { name: 'NỮ', path: '/female' },
     { name: 'GIẢM GIÁ TẾT', path: '/sale-tet' },
+    { name: 'COMBO', path: '/combo' },
     { name: 'TIN TỨC', path: '/news' },
     { name: 'GIỚI THIỆU', path: '/about' },
   ] : [
@@ -48,6 +49,7 @@ const CustomerLayout = () => {
     { name: 'NAM', path: '/male' },
     { name: 'NỮ', path: '/female' },
     { name: 'GIẢM GIÁ', path: '/sale' },
+    { name: 'COMBO', path: '/combo' },
     { name: 'TIN TỨC', path: '/news' },
     { name: 'GIỚI THIỆU', path: '/about' },
   ];

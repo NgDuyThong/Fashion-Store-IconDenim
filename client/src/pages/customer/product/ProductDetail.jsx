@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { FaShoppingCart, FaHeart, FaStar, FaMinus, FaPlus, FaArrowRight, FaHome, FaChevronRight, FaRegHeart, FaTag, FaEye, FaMedal, FaRuler, FaPalette, FaBolt, FaChevronDown, FaInfoCircle, FaPhoneAlt, FaFacebookMessenger, FaEdit, FaTrash, FaTshirt, FaTimes } from 'react-icons/fa';
+import { FaShoppingCart, FaHeart, FaStar, FaMinus, FaPlus, FaArrowRight, FaHome, FaChevronRight, FaRegHeart, FaTag, FaEye, FaMedal, FaRuler, FaPalette, FaBolt, FaChevronDown, FaInfoCircle, FaPhoneAlt, FaFacebookMessenger, FaEdit, FaTrash, FaTshirt, FaTimes, FaCheck } from 'react-icons/fa';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Autoplay, Thumbs, EffectFade, EffectCreative, EffectCards } from 'swiper/modules';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
@@ -64,6 +64,19 @@ const ProductDetail = () => {
   // State cho sản phẩm tương tự (CoHUI recommendations)
   const [similarProducts, setSimilarProducts] = useState([]);
   const [similarLoading, setSimilarLoading] = useState(false);
+
+  // State cho combo
+  const [comboProduct, setComboProduct] = useState(null); // Sản phẩm tương quan cao nhất
+  const [showCombo, setShowCombo] = useState(false); // Hiển thị combo box
+  const [comboLoading, setComboLoading] = useState(false);
+  
+  // State cho modal combo
+  const [showComboModal, setShowComboModal] = useState(false);
+  const [productFull, setProductFull] = useState(null); // Product hiện tại với colors đầy đủ
+  const [comboProductFull, setComboProductFull] = useState(null);
+  const [comboSelectedColor, setComboSelectedColor] = useState(null);
+  const [comboSelectedSize, setComboSelectedSize] = useState('');
+  const [addingCombo, setAddingCombo] = useState(false);
 
   // Fetch thông tin sản phẩm và đánh giá khi component mount hoặc id thay đổi
   useEffect(() => {
@@ -317,6 +330,58 @@ const ProductDetail = () => {
     fetchSimilarProducts();
   }, [id, product]); // ✅ Cần cả id và product vì logic filter dùng product.targetID
 
+  // Fetch combo product (sản phẩm tương quan cao nhất)
+  useEffect(() => {
+    const fetchComboProduct = async () => {
+      if (!id || !product) return;
+      
+      try {
+        setComboLoading(true);
+        
+        // Lấy sản phẩm tương quan cao nhất từ CoHUI API
+        const response = await axiosInstance.get(`/api/cohui/bought-together/${id}`);
+        
+        if (response.data.success && response.data.recommendations && response.data.recommendations.length > 0) {
+          // Lọc bỏ sản phẩm hiện tại và chỉ lấy sản phẩm cùng giới tính
+          const filtered = response.data.recommendations.filter(item => {
+            if (!item.productDetails) return false;
+            if (item.productDetails.productID === parseInt(id)) return false;
+            
+            const currentTargetID = product.targetID && product.targetID !== 'undefined' 
+              ? parseInt(product.targetID) 
+              : null;
+            const itemTargetID = item.productDetails.targetID;
+            
+            if (currentTargetID && itemTargetID) {
+              return itemTargetID === currentTargetID;
+            }
+            
+            if (product.target && item.productDetails.target) {
+              return item.productDetails.target === product.target;
+            }
+            
+            return true;
+          });
+          
+          // Lấy sản phẩm đầu tiên (tương quan cao nhất)
+          if (filtered.length > 0) {
+            setComboProduct(filtered[0].productDetails);
+            setShowCombo(true);
+          } else {
+            setShowCombo(false);
+          }
+        }
+      } catch (error) {
+        console.error('Lỗi khi tải combo product:', error);
+        setShowCombo(false);
+      } finally {
+        setComboLoading(false);
+      }
+    };
+
+    fetchComboProduct();
+  }, [id, product]);
+
   // Hàm lấy danh sách đánh giá từ API
   const fetchReviews = async () => {
     try {
@@ -499,6 +564,39 @@ const ProductDetail = () => {
     return color ? color.images : [];
   };
 
+  // Hàm tính giá combo với discount
+  const calculateComboPrice = () => {
+    if (!product || !comboProduct) return null;
+    
+    const currentProductPrice = product.finalPrice || product.price;
+    const comboProductPrice = comboProduct.finalPrice || comboProduct.price;
+    const totalPrice = currentProductPrice + comboProductPrice;
+    
+    // Logic khuyến mãi mới:
+    // - Dưới 1 triệu: giảm 3%
+    // - Dưới 3 triệu: giảm 5%
+    // - Từ 3 triệu trở lên: giảm 10%
+    let discountPercent = 0;
+    if (totalPrice >= 3000000) {
+      discountPercent = 10;
+    } else if (totalPrice >= 1000000) {
+      discountPercent = 5;
+    } else {
+      discountPercent = 3;
+    }
+    
+    const discountAmount = totalPrice * (discountPercent / 100);
+    const finalPrice = totalPrice - discountAmount;
+    
+    return {
+      originalPrice: totalPrice,
+      discountPercent,
+      discountAmount,
+      finalPrice,
+      savings: discountAmount
+    };
+  };
+
   // Hàm xử lý thêm vào giỏ hàng
   const handleAddToCart = async () => {
     try {
@@ -575,6 +673,140 @@ const ProductDetail = () => {
       } else {
         toast.error(error.response?.data?.message || 'Không thể thêm vào giỏ hàng');
       }
+    }
+  };
+
+  // Hàm xử lý thêm combo vào giỏ hàng
+  const handleAddComboToCart = async () => {
+    try {
+      // Kiểm tra đăng nhập
+      const token = localStorage.getItem('customerToken');
+      if (!token) {
+        toast.error('Vui lòng đăng nhập để mua hàng');
+        navigate('/login');
+        return;
+      }
+
+      // Kiểm tra đã chọn size và màu cho sản phẩm hiện tại
+      if (!selectedSize || !selectedColor) {
+        toast.error('Vui lòng chọn màu sắc và kích thước cho sản phẩm này');
+        return;
+      }
+
+      // Kiểm tra đã chọn size và màu cho sản phẩm combo
+      if (!comboSelectedSize || !comboSelectedColor) {
+        toast.error('Vui lòng chọn màu sắc và kích thước cho sản phẩm combo');
+        return;
+      }
+
+      setAddingCombo(true);
+      console.log('=== ADDING COMBO FROM PRODUCT DETAIL ===');
+      console.log('Current Product:', { 
+        productID: product.productID, 
+        name: product.name,
+        colorID: selectedColor.colorID,
+        size: selectedSize
+      });
+      console.log('Combo Product:', {
+        productID: comboProduct.productID,
+        name: comboProduct.name,
+        colorID: comboSelectedColor.colorID,
+        size: comboSelectedSize
+      });
+
+      // Thêm sản phẩm hiện tại vào giỏ hàng
+      await handleAddToCart();
+
+      // Lấy sizeID cho sản phẩm combo
+      const comboSize = comboSelectedColor.sizes?.find(s => s.size === comboSelectedSize);
+      if (!comboSize) {
+        toast.error('Không tìm thấy kích thước cho sản phẩm combo');
+        return;
+      }
+
+      // Kiểm tra tồn kho
+      if (comboSize.stock < 1) {
+        toast.warning(`Đã thêm sản phẩm chính. Sản phẩm "${comboProduct.name}" đã hết hàng.`);
+        return;
+      }
+
+      // Thêm sản phẩm combo vào giỏ
+      console.log('Adding combo to cart:', {
+        productID: comboProduct.productID,
+        colorID: comboSelectedColor.colorID,
+        sizeID: comboSize.sizeID,
+        quantity: 1
+      });
+
+      const comboResponse = await axiosInstance.post('/api/cart/add', {
+        productID: comboProduct.productID,
+        colorID: comboSelectedColor.colorID,
+        sizeID: comboSize.sizeID,
+        quantity: 1
+      });
+
+      console.log('Combo added response:', comboResponse.data);
+
+      if (comboResponse.data.success) {
+        toast.success(`🎉 Đã thêm COMBO vào giỏ hàng! Tiết kiệm ${calculateComboPrice()?.discountPercent}%`);
+        window.dispatchEvent(new Event('cartChange'));
+        setShowComboModal(false); // Đóng modal sau khi thêm thành công
+      }
+    } catch (error) {
+      console.error('=== ERROR ADDING COMBO FROM PRODUCT DETAIL ===');
+      console.error('Error:', error);
+      console.error('Error response:', error.response);
+      toast.error(error.response?.data?.message || 'Có lỗi khi thêm combo vào giỏ hàng');
+    } finally {
+      setAddingCombo(false);
+    }
+  };
+
+  // Mở modal combo và load thông tin đầy đủ
+  const handleOpenComboModal = async () => {
+    try {
+      setShowComboModal(true);
+      
+      // Fetch thông tin đầy đủ của sản phẩm hiện tại nếu chưa có
+      if (!productFull) {
+        const currentProductResponse = await axiosInstance.get(`/api/products/${id}`);
+        
+        // Xử lý response có thể có .product hoặc trực tiếp
+        const product1Data = currentProductResponse.data.product || currentProductResponse.data;
+        
+        setProductFull(product1Data);
+        
+        // Set màu và size mặc định cho sản phẩm 1
+        if (product1Data.colors?.length > 0) {
+          const firstColor = product1Data.colors[0];
+          setSelectedColor(firstColor);
+          if (firstColor.sizes?.length > 0) {
+            setSelectedSize(firstColor.sizes[0].size);
+          }
+        }
+      }
+      
+      // Fetch thông tin đầy đủ của sản phẩm combo nếu chưa có
+      if (!comboProductFull) {
+        const response = await axiosInstance.get(`/api/products/${comboProduct.productID}`);
+        
+        // Xử lý response có thể có .product hoặc trực tiếp
+        const product2Data = response.data.product || response.data;
+        
+        setComboProductFull(product2Data);
+        
+        // Set màu và size mặc định cho sản phẩm 2
+        if (product2Data.colors?.length > 0) {
+          const firstColor = product2Data.colors[0];
+          setComboSelectedColor(firstColor);
+          if (firstColor.sizes?.length > 0) {
+            setComboSelectedSize(firstColor.sizes[0].size);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error loading combo product details:', error);
+      toast.error('Không thể tải thông tin sản phẩm combo');
     }
   };
 
@@ -1121,6 +1353,77 @@ const ProductDetail = () => {
                 )}
               </button>
             </div>
+
+            {/* Combo Box Thu Nhỏ - Hiển thị combo sản phẩm */}
+            {showCombo && comboProduct && !comboLoading && (
+              <div 
+                onClick={handleOpenComboModal}
+                className={`mt-6 border-2 rounded-xl p-4 cursor-pointer transition-all hover:shadow-lg ${
+                  theme === 'tet' 
+                    ? 'border-red-200 bg-red-50 hover:border-red-400' 
+                    : 'border-blue-200 bg-blue-50 hover:border-blue-400'
+                }`}
+              >
+                <div className="flex items-center justify-between mb-3">
+                  <h3 className={`text-lg font-bold flex items-center ${
+                    theme === 'tet' ? 'text-red-700' : 'text-blue-700'
+                  }`}>
+                    <FaTag className="mr-2" />
+                    Mua Combo Tiết Kiệm
+                  </h3>
+                  {calculateComboPrice() && (
+                    <span className={`text-sm font-bold px-3 py-1 rounded-full ${
+                      theme === 'tet'
+                        ? 'bg-red-600 text-white'
+                        : 'bg-blue-600 text-white'
+                    }`}>
+                      Giảm {calculateComboPrice().discountPercent}%
+                    </span>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mb-3">
+                  {/* Sản phẩm hiện tại */}
+                  <div className="bg-white rounded-lg p-2">
+                    <img 
+                      src={product.thumbnail || '/placeholder-product.png'} 
+                      alt={product.name}
+                      className="w-full h-24 object-cover rounded mb-1"
+                    />
+                    <h4 className="text-xs font-medium line-clamp-1">{product.name}</h4>
+                  </div>
+
+                  {/* Sản phẩm combo */}
+                  <div className="bg-white rounded-lg p-2">
+                    <img 
+                      src={comboProduct.thumbnail || '/placeholder-product.png'} 
+                      alt={comboProduct.name}
+                      className="w-full h-24 object-cover rounded mb-1"
+                    />
+                    <h4 className="text-xs font-medium line-clamp-1">{comboProduct.name}</h4>
+                  </div>
+                </div>
+
+                {/* Thông tin giá combo */}
+                {calculateComboPrice() && (
+                  <div className="bg-white rounded-lg p-2">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="font-bold">Giá combo:</span>
+                      <span className={`text-lg font-bold ${theme === 'tet' ? 'text-red-600' : 'text-blue-600'}`}>
+                        {calculateComboPrice().finalPrice.toLocaleString('vi-VN')}đ
+                      </span>
+                    </div>
+                    <p className="text-xs text-green-600 text-center mt-1">
+                      ⭐ Tiết kiệm {calculateComboPrice().savings.toLocaleString('vi-VN')}đ
+                    </p>
+                  </div>
+                )}
+
+                <p className={`text-sm text-center mt-3 font-medium ${theme === 'tet' ? 'text-red-600' : 'text-blue-600'}`}>
+                  👆 Nhấn để chọn màu & size cho combo
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
@@ -1988,6 +2291,286 @@ const ProductDetail = () => {
               </button>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Combo - Phóng to để chọn màu và size */}
+      {showComboModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Header */}
+            <div className={`sticky top-0 z-10 p-4 border-b flex items-center justify-between ${
+              theme === 'tet' ? 'bg-red-50' : 'bg-blue-50'
+            }`}>
+              <h2 className={`text-2xl font-bold flex items-center ${
+                theme === 'tet' ? 'text-red-700' : 'text-blue-700'
+              }`}>
+                <FaTag className="mr-2" />
+                Chọn Màu & Size Cho Combo
+              </h2>
+              <button
+                onClick={() => setShowComboModal(false)}
+                className="p-2 hover:bg-gray-200 rounded-full transition"
+              >
+                <FaTimes className="text-xl" />
+              </button>
+            </div>
+
+            {/* Loading State or Content */}
+            {!productFull || !comboProductFull ? (
+              <div className="p-6 flex items-center justify-center min-h-[400px]">
+                <div className="text-center">
+                  <div className={`animate-spin rounded-full h-16 w-16 border-4 border-t-transparent mx-auto mb-4 ${
+                    theme === 'tet' ? 'border-red-600' : 'border-blue-600'
+                  }`}></div>
+                  <p className="text-gray-600">Đang tải thông tin sản phẩm...</p>
+                </div>
+              </div>
+            ) : (
+              /* Content */
+              <div className="p-6">
+                {/* Discount Badge */}
+                {calculateComboPrice() && (
+                  <div className={`text-center mb-4 p-3 rounded-lg ${
+                    theme === 'tet' ? 'bg-red-100' : 'bg-blue-100'
+                  }`}>
+                    <span className={`text-2xl font-bold ${
+                      theme === 'tet' ? 'text-red-600' : 'text-blue-600'
+                    }`}>
+                      🎉 Giảm {calculateComboPrice().discountPercent}% - Tiết kiệm {calculateComboPrice().savings.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Sản phẩm 1 - Sản phẩm hiện tại */}
+                  <div className="border rounded-xl p-4">
+                    <h3 
+                      onClick={() => navigate(`/product/${product.productID}`)}
+                      className="text-lg font-bold mb-3 cursor-pointer hover:text-blue-600 transition"
+                    >
+                      Sản phẩm 1: {product.name}
+                    </h3>
+                    <img 
+                      src={product.thumbnail} 
+                      alt={product.name}
+                      onClick={() => navigate(`/product/${product.productID}`)}
+                      className="w-full h-48 object-cover rounded-lg mb-3 cursor-pointer hover:opacity-80 transition"
+                    />
+                    <p className={`text-xl font-bold mb-2 ${theme === 'tet' ? 'text-red-600' : 'text-blue-600'}`}>
+                      {(product.finalPrice || product.price).toLocaleString('vi-VN')}đ
+                    </p>
+                  
+                    {/* Chọn màu */}
+                    <div className="mb-3">
+                      <label className="block text-sm font-medium mb-2">Chọn màu sắc:</label>
+                      <div className="flex flex-wrap gap-2">
+                        {productFull?.colors?.filter(color => color && color.colorName).map((color) => (
+                          <button
+                            key={color.colorID}
+                            onClick={() => {
+                              setSelectedColor(color);
+                              setSelectedSize(''); // Reset size khi đổi màu
+                            }}
+                            className={`relative group`}
+                            title={color.colorName}
+                          >
+                            <div
+                              className={`w-10 h-10 rounded-full border-2 transition-all ${
+                                selectedColor?.colorID === color.colorID
+                                  ? theme === 'tet'
+                                    ? 'border-red-600 ring-2 ring-red-300'
+                                    : 'border-blue-600 ring-2 ring-blue-300'
+                                  : 'border-gray-300 hover:border-gray-400'
+                              }`}
+                              style={{
+                                background: getColorCode(color.colorName),
+                                backgroundImage: isPatternOrStripe(color.colorName) ? getColorCode(color.colorName) : 'none',
+                                backgroundSize: getBackgroundSize(color.colorName),
+                              }}
+                            />
+                            {selectedColor?.colorID === color.colorID && (
+                              <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full ${
+                                theme === 'tet' ? 'bg-red-600' : 'bg-blue-600'
+                              } flex items-center justify-center`}>
+                                <FaCheck className="text-white text-xs" />
+                              </div>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Chọn size */}
+                    {selectedColor && (
+                      <div>
+                        <label className="block text-sm font-medium mb-2">Chọn kích thước:</label>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedColor.sizes?.map((sizeObj) => (
+                            <button
+                              key={sizeObj.size}
+                              onClick={() => setSelectedSize(sizeObj.size)}
+                              disabled={sizeObj.stock === 0}
+                              className={`px-4 py-2 rounded-lg font-medium border-2 transition-all ${
+                                sizeObj.stock === 0
+                                  ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                  : selectedSize === sizeObj.size
+                                    ? theme === 'tet'
+                                      ? 'bg-red-600 text-white border-red-600'
+                                      : 'bg-blue-600 text-white border-blue-600'
+                                    : 'bg-white border-gray-300 hover:border-gray-400'
+                              }`}
+                            >
+                              {sizeObj.size}
+                              {sizeObj.stock === 0 && ' (Hết)'}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                {/* Sản phẩm 2 - Sản phẩm combo */}
+                <div className="border rounded-xl p-4">
+                  <h3 
+                    onClick={() => navigate(`/product/${comboProduct.productID}`)}
+                    className="text-lg font-bold mb-3 cursor-pointer hover:text-blue-600 transition"
+                  >
+                    Sản phẩm 2: {comboProduct.name}
+                  </h3>
+                  <img 
+                    src={comboProduct.thumbnail} 
+                    alt={comboProduct.name}
+                    onClick={() => navigate(`/product/${comboProduct.productID}`)}
+                    className="w-full h-48 object-cover rounded-lg mb-3 cursor-pointer hover:opacity-80 transition"
+                  />
+                  <p className={`text-xl font-bold mb-2 ${theme === 'tet' ? 'text-red-600' : 'text-blue-600'}`}>
+                    {(comboProduct.finalPrice || comboProduct.price).toLocaleString('vi-VN')}đ
+                  </p>
+
+                  {/* Chọn màu */}
+                  <div className="mb-3">
+                    <label className="block text-sm font-medium mb-2">Chọn màu sắc:</label>
+                    <div className="flex flex-wrap gap-2">
+                      {comboProductFull.colors?.filter(color => color && color.colorName).map((color) => (
+                        <button
+                          key={color.colorID}
+                          onClick={() => {
+                            setComboSelectedColor(color);
+                            setComboSelectedSize(''); // Reset size khi đổi màu
+                          }}
+                          className={`relative group`}
+                          title={color.colorName}
+                        >
+                          <div
+                            className={`w-10 h-10 rounded-full border-2 transition-all ${
+                              comboSelectedColor?.colorID === color.colorID
+                                ? theme === 'tet'
+                                  ? 'border-red-600 ring-2 ring-red-300'
+                                  : 'border-blue-600 ring-2 ring-blue-300'
+                                : 'border-gray-300 hover:border-gray-400'
+                            }`}
+                            style={{
+                              background: getColorCode(color.colorName),
+                              backgroundImage: isPatternOrStripe(color.colorName) ? getColorCode(color.colorName) : 'none',
+                              backgroundSize: getBackgroundSize(color.colorName),
+                            }}
+                          />
+                          {comboSelectedColor?.colorID === color.colorID && (
+                            <div className={`absolute -top-1 -right-1 w-4 h-4 rounded-full ${
+                              theme === 'tet' ? 'bg-red-600' : 'bg-blue-600'
+                            } flex items-center justify-center`}>
+                              <FaCheck className="text-white text-xs" />
+                            </div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Chọn size */}
+                  {comboSelectedColor && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Chọn kích thước:</label>
+                      <div className="flex flex-wrap gap-2">
+                        {comboSelectedColor.sizes?.map((sizeObj) => (
+                          <button
+                            key={sizeObj.size}
+                            onClick={() => setComboSelectedSize(sizeObj.size)}
+                            disabled={sizeObj.stock === 0}
+                            className={`px-4 py-2 rounded-lg font-medium border-2 transition-all ${
+                              sizeObj.stock === 0
+                                ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+                                : comboSelectedSize === sizeObj.size
+                                  ? theme === 'tet'
+                                    ? 'bg-red-600 text-white border-red-600'
+                                    : 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white text-gray-700 border-gray-300 hover:border-gray-400'
+                            }`}
+                          >
+                            {sizeObj.size}
+                            {sizeObj.stock > 0 && sizeObj.stock < 5 && (
+                              <span className="block text-xs">Còn {sizeObj.stock}</span>
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tổng giá */}
+              {calculateComboPrice() && (
+                <div className="mt-6 p-4 bg-gray-50 rounded-xl">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600">Tổng giá gốc:</span>
+                    <span className="line-through text-gray-400 text-lg">
+                      {calculateComboPrice().originalPrice.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-gray-600">Giảm giá ({calculateComboPrice().discountPercent}%):</span>
+                    <span className={`text-lg font-bold ${theme === 'tet' ? 'text-red-600' : 'text-blue-600'}`}>
+                      -{calculateComboPrice().discountAmount.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-center pt-3 border-t-2 border-gray-200">
+                    <span className="text-xl font-bold">Giá combo:</span>
+                    <span className={`text-2xl font-bold ${theme === 'tet' ? 'text-red-600' : 'text-blue-600'}`}>
+                      {calculateComboPrice().finalPrice.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Nút thêm vào giỏ */}
+              <button
+                onClick={handleAddComboToCart}
+                disabled={!selectedSize || !selectedColor || !comboSelectedSize || !comboSelectedColor || addingCombo}
+                className={`w-full mt-6 py-4 rounded-full font-bold text-white text-lg transition-all ${
+                  !selectedSize || !selectedColor || !comboSelectedSize || !comboSelectedColor || addingCombo
+                    ? 'bg-gray-300 cursor-not-allowed'
+                    : theme === 'tet'
+                      ? 'bg-red-600 hover:bg-red-700'
+                      : 'bg-blue-600 hover:bg-blue-700'
+                }`}
+              >
+                {addingCombo ? (
+                  <>
+                    <div className="inline-block animate-spin rounded-full h-5 w-5 border-2 border-white border-t-transparent mr-2" />
+                    Đang thêm...
+                  </>
+                ) : (
+                  <>
+                    <FaShoppingCart className="inline mr-2" />
+                    Thêm Combo Vào Giỏ Hàng
+                  </>
+                )}
+              </button>
+            </div>
+            )}
+          </div>
         </div>
       )}
     </div>
