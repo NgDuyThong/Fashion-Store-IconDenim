@@ -141,6 +141,143 @@ class CartController {
         }
     }
 
+    // Thêm combo sản phẩm vào giỏ hàng
+    async addComboToCart(req, res) {
+        try {
+            const { product1, product2 } = req.body;
+            const userID = req.user.userID;
+
+            console.log('=== ADD COMBO TO CART ===');
+            console.log('UserID:', userID);
+            console.log('Product 1:', product1);
+            console.log('Product 2:', product2);
+
+            // Validate input
+            if (!product1 || !product2) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Thiếu thông tin sản phẩm'
+                });
+            }
+
+            if (!product1.colorID || !product1.sizeStockID || !product2.colorID || !product2.sizeStockID) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Vui lòng chọn đầy đủ màu sắc và kích thước cho cả 2 sản phẩm'
+                });
+            }
+
+            // Thêm từng sản phẩm vào giỏ
+            const products = [product1, product2];
+            const addedItems = [];
+
+            for (const product of products) {
+                // Tìm thông tin sản phẩm
+                const productInfo = await Product.findOne({ productID: product.productID });
+                if (!productInfo) {
+                    return res.status(404).json({
+                        success: false,
+                        message: `Không tìm thấy sản phẩm #${product.productID}`
+                    });
+                }
+
+                // Kiểm tra màu sắc
+                const colorInfo = await ProductColor.findOne({
+                    productID: product.productID,
+                    colorID: product.colorID
+                });
+
+                if (!colorInfo) {
+                    return res.status(404).json({
+                        success: false,
+                        message: `Màu sắc không hợp lệ cho sản phẩm ${productInfo.name}`
+                    });
+                }
+
+                // Tìm thông tin size và tồn kho bằng sizeStockID
+                const sizeStock = await ProductSizeStock.findOne({ 
+                    sizeStockID: product.sizeStockID,
+                    colorID: product.colorID
+                });
+
+                if (!sizeStock) {
+                    console.error('❌ Size stock not found:', {
+                        sizeStockID: product.sizeStockID,
+                        colorID: product.colorID,
+                        productID: product.productID
+                    });
+                    return res.status(404).json({
+                        success: false,
+                        message: `Không tìm thấy kích thước cho sản phẩm ${productInfo.name}`
+                    });
+                }
+
+                const SKU = sizeStock.SKU;
+                console.log('✅ Found SKU:', SKU, 'Stock:', sizeStock.stock);
+
+                if (sizeStock.stock < 1) {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Sản phẩm "${productInfo.name}" đã hết hàng`
+                    });
+                }
+
+                // Kiểm tra xem đã có trong giỏ chưa
+                let cartItem = await Cart.findOne({ userID, SKU });
+
+                if (cartItem) {
+                    // Nếu đã có thì tăng số lượng
+                    const newQuantity = cartItem.quantity + 1;
+                    
+                    if (newQuantity > sizeStock.stock) {
+                        return res.status(400).json({
+                            success: false,
+                            message: `Sản phẩm "${productInfo.name}" chỉ còn ${sizeStock.stock} trong kho`
+                        });
+                    }
+
+                    cartItem.quantity = newQuantity;
+                    await cartItem.save();
+                } else {
+                    // Nếu chưa có thì thêm mới
+                    const lastCart = await Cart.findOne().sort({ cartID: -1 });
+                    const cartID = lastCart ? lastCart.cartID + 1 : 1;
+
+                    cartItem = new Cart({
+                        cartID,
+                        userID,
+                        SKU,
+                        quantity: 1
+                    });
+                    await cartItem.save();
+                }
+
+                addedItems.push({
+                    productID: product.productID,
+                    name: productInfo.name,
+                    SKU,
+                    quantity: cartItem.quantity
+                });
+            }
+
+            console.log('✅ Added combo items:', addedItems);
+
+            res.status(201).json({
+                success: true,
+                message: 'Đã thêm combo vào giỏ hàng',
+                items: addedItems
+            });
+
+        } catch (error) {
+            console.error('❌ Error adding combo to cart:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi server khi thêm combo vào giỏ hàng',
+                error: error.message
+            });
+        }
+    }
+
     // Thêm sản phẩm vào giỏ hàng
     async addToCart(req, res) {
         try {

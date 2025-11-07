@@ -612,7 +612,7 @@ class ProductController {
                 colors.map(async (color) => {
                     const sizes = await ProductSizeStock.find({
                         colorID: color.colorID,
-                    }).select("size stock");
+                    }).select("size stock sizeStockID");
 
                     sizes.sort((a, b) => sizeOrder.indexOf(a.size) - sizeOrder.indexOf(b.size));
 
@@ -627,6 +627,7 @@ class ProductController {
                         colorName: color.colorName,
                         images: images || [], // Lưu ảnh đã xử lý từ Cloudinary
                         sizes: sizes.map((size) => ({
+                            sizeStockID: size.sizeStockID,
                             size: size.size,
                             stock: size.stock,
                         })),
@@ -1126,6 +1127,7 @@ class ProductController {
                         colorName: color.colorName,
                         images: images || [],
                                 sizes: sizes.map((size) => ({
+                                    sizeStockID: size.sizeStockID,
                             size: size.size,
                                     stock: size.stock,
                                 })),
@@ -1258,6 +1260,7 @@ class ProductController {
                             colorID: color.colorID,
                             colorName: color.colorName,
                                         sizes: sizes.map((size) => ({
+                                            sizeStockID: size.sizeStockID,
                                 size: size.size,
                                             stock: size.stock,
                                         })),
@@ -1455,6 +1458,7 @@ class ProductController {
                         colorName: color.colorName,
                         images: images || [],
                         sizes: sizes.map((size) => ({
+                            sizeStockID: size.sizeStockID,
                             size: size.size,
                             stock: size.stock,
                             SKU: size.SKU

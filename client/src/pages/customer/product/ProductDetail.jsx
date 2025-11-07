@@ -74,7 +74,7 @@ const ProductDetail = () => {
   const [showComboModal, setShowComboModal] = useState(false);
   const [productFull, setProductFull] = useState(null); // Product hiện tại với colors đầy đủ
   const [comboProductFull, setComboProductFull] = useState(null);
-  const [comboSelectedColor, setComboSelectedColor] = useState(null);
+  const [comboSelectedColor, setComboSelectedColor] = useState(null); // ✅ FIX: null thay vì ''
   const [comboSelectedSize, setComboSelectedSize] = useState('');
   const [addingCombo, setAddingCombo] = useState(false);
 
@@ -701,62 +701,143 @@ const ProductDetail = () => {
 
       setAddingCombo(true);
       console.log('=== ADDING COMBO FROM PRODUCT DETAIL ===');
-      console.log('Current Product:', { 
-        productID: product.productID, 
+      console.log('Current Product:', {
+        productID: product.productID,
         name: product.name,
-        colorID: selectedColor.colorID,
-        size: selectedSize
+        selectedColor,
+        selectedSize
       });
       console.log('Combo Product:', {
         productID: comboProduct.productID,
         name: comboProduct.name,
-        colorID: comboSelectedColor.colorID,
-        size: comboSelectedSize
+        comboSelectedColor,
+        comboSelectedSize
       });
 
-      // Thêm sản phẩm hiện tại vào giỏ hàng
-      await handleAddToCart();
+      // ✅ FIX: Lấy colorID - kiểm tra selectedColor là object hay string
+      let currentColorID;
+      if (typeof selectedColor === 'object' && selectedColor !== null) {
+        currentColorID = selectedColor.colorID;
+        console.log('✅ Current color is object, colorID:', currentColorID);
+      } else {
+        // Nếu selectedColor là string (tên màu), tìm trong productFull.colors
+        console.log('⚠️ Current color is string, finding in productFull...');
+        const colorObj = productFull?.colors?.find(c => c.colorName === selectedColor);
+        if (!colorObj) {
+          toast.error('Không tìm thấy màu sắc cho sản phẩm này');
+          console.error('❌ Color not found:', selectedColor);
+          return;
+        }
+        currentColorID = colorObj.colorID;
+        console.log('✅ Found colorID:', currentColorID);
+      }
 
-      // Lấy sizeID cho sản phẩm combo
-      const comboSize = comboSelectedColor.sizes?.find(s => s.size === comboSelectedSize);
+      // Lấy sizeID cho sản phẩm hiện tại
+      const currentColorObj = productFull?.colors?.find(c => c.colorID === currentColorID);
+      if (!currentColorObj) {
+        toast.error('Không tìm thấy thông tin màu sắc');
+        console.error('❌ Color object not found for colorID:', currentColorID);
+        console.error('Available colors:', productFull?.colors);
+        return;
+      }
+
+      console.log('🔍 Looking for size in currentColorObj:', {
+        selectedSize,
+        availableSizes: currentColorObj.sizes
+      });
+
+      const currentSize = currentColorObj.sizes?.find(s => s.size === selectedSize);
+      if (!currentSize) {
+        toast.error('Không tìm thấy kích thước cho sản phẩm này');
+        console.error('❌ Size not found:', selectedSize);
+        console.error('Available sizes:', currentColorObj.sizes);
+        return;
+      }
+
+      console.log('✅ Current product - Full size object:', currentSize);
+      console.log('✅ Current product - colorID:', currentColorID, 'sizeStockID:', currentSize.sizeStockID, 'stock:', currentSize.stock);
+
+      // Lấy sizeStockID cho sản phẩm combo
+      const comboColorID = comboSelectedColor.colorID;
+      const comboColorObj = comboProductFull?.colors?.find(c => c.colorID === comboColorID);
+      if (!comboColorObj) {
+        toast.error('Không tìm thấy thông tin màu sắc cho sản phẩm combo');
+        console.error('❌ Combo color object not found for colorID:', comboColorID);
+        console.error('Available colors:', comboProductFull?.colors);
+        return;
+      }
+
+      console.log('🔍 Looking for size in comboColorObj:', {
+        comboSelectedSize,
+        availableSizes: comboColorObj.sizes
+      });
+
+      const comboSize = comboColorObj.sizes?.find(s => s.size === comboSelectedSize);
       if (!comboSize) {
         toast.error('Không tìm thấy kích thước cho sản phẩm combo');
+        console.error('❌ Combo size not found:', comboSelectedSize);
+        console.error('Available sizes:', comboColorObj.sizes);
         return;
       }
+
+      console.log('✅ Combo product - Full size object:', comboSize);
+      console.log('✅ Combo product - colorID:', comboColorID, 'sizeStockID:', comboSize.sizeStockID, 'stock:', comboSize.stock);
 
       // Kiểm tra tồn kho
-      if (comboSize.stock < 1) {
-        toast.warning(`Đã thêm sản phẩm chính. Sản phẩm "${comboProduct.name}" đã hết hàng.`);
+      if (currentSize.stock < 1) {
+        toast.error(`Sản phẩm "${product.name}" đã hết hàng`);
         return;
       }
 
-      // Thêm sản phẩm combo vào giỏ
-      console.log('Adding combo to cart:', {
-        productID: comboProduct.productID,
-        colorID: comboSelectedColor.colorID,
-        sizeID: comboSize.sizeID,
-        quantity: 1
-      });
-
-      const comboResponse = await axiosInstance.post('/api/cart/add', {
-        productID: comboProduct.productID,
-        colorID: comboSelectedColor.colorID,
-        sizeID: comboSize.sizeID,
-        quantity: 1
-      });
-
-      console.log('Combo added response:', comboResponse.data);
-
-      if (comboResponse.data.success) {
-        toast.success(`🎉 Đã thêm COMBO vào giỏ hàng! Tiết kiệm ${calculateComboPrice()?.discountPercent}%`);
-        window.dispatchEvent(new Event('cartChange'));
-        setShowComboModal(false); // Đóng modal sau khi thêm thành công
+      if (comboSize.stock < 1) {
+        toast.error(`Sản phẩm "${comboProduct.name}" đã hết hàng`);
+        return;
       }
+
+      const requestData = {
+        product1: {
+          productID: product.productID,
+          colorID: currentColorID,
+          sizeStockID: currentSize.sizeStockID
+        },
+        product2: {
+          productID: comboProduct.productID,
+          colorID: comboColorID,
+          sizeStockID: comboSize.sizeStockID
+        }
+      };
+
+      console.log('📤 Sending request to /api/cart/add-combo:', requestData);
+
+      // Gọi API thêm combo
+      const response = await axiosInstance.post('/api/cart/add-combo', requestData, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+
+      console.log('📥 Response:', response.data);
+
+      if (response.data.success) {
+        const discountInfo = calculateComboPrice();
+        toast.success(`🎉 Đã thêm COMBO vào giỏ hàng! Tiết kiệm ${discountInfo?.discountPercent || 5}%`);
+        window.dispatchEvent(new Event('cartChange'));
+        setShowComboModal(false);
+        
+        // Reset selections
+        setComboSelectedColor(null);
+        setComboSelectedSize('');
+      } else {
+        toast.error(response.data.message || 'Có lỗi khi thêm combo');
+      }
+
     } catch (error) {
-      console.error('=== ERROR ADDING COMBO FROM PRODUCT DETAIL ===');
+      console.error('=== ERROR ADDING COMBO ===');
       console.error('Error:', error);
-      console.error('Error response:', error.response);
-      toast.error(error.response?.data?.message || 'Có lỗi khi thêm combo vào giỏ hàng');
+      console.error('Error response:', error.response?.data);
+      
+      const errorMessage = error.response?.data?.message || 'Có lỗi khi thêm combo vào giỏ hàng';
+      toast.error(errorMessage);
     } finally {
       setAddingCombo(false);
     }
@@ -767,45 +848,76 @@ const ProductDetail = () => {
     try {
       setShowComboModal(true);
       
-      // Fetch thông tin đầy đủ của sản phẩm hiện tại nếu chưa có
-      if (!productFull) {
-        const currentProductResponse = await axiosInstance.get(`/api/products/${id}`);
+      // ✅ RESET state cũ để force reload
+      setProductFull(null);
+      setComboProductFull(null);
+      
+      console.log('=== OPENING COMBO MODAL ===');
+      console.log('Current product:', product);
+      console.log('Combo product:', comboProduct);
+      
+      // Fetch thông tin đầy đủ của sản phẩm hiện tại - LUÔN LUÔN LOAD MỚI
+      console.log('Fetching full details for product 1...');
+      const currentProductResponse = await axiosInstance.get(`/api/products/${id}?t=${Date.now()}`);
+      
+      // Xử lý response có thể có .product hoặc trực tiếp
+      const product1Data = currentProductResponse.data.product || currentProductResponse.data;
+      
+      console.log('🔍 Product 1 API Response:', product1Data);
+      console.log('🔍 Product 1 Colors:', product1Data.colors);
+      if (product1Data.colors?.[0]?.sizes?.[0]) {
+        console.log('🔍 Product 1 First Size Object:', JSON.stringify(product1Data.colors[0].sizes[0]));
+      }
+      
+      setProductFull(product1Data);
+      
+      // ✅ Set màu và size mặc định - đảm bảo là object
+      if (product1Data.colors?.length > 0) {
+        const firstColor = product1Data.colors[0];
+        console.log('✅ Setting default color for product 1:', firstColor);
+        setSelectedColor(firstColor); // ✅ Set object có colorID
         
-        // Xử lý response có thể có .product hoặc trực tiếp
-        const product1Data = currentProductResponse.data.product || currentProductResponse.data;
-        
-        setProductFull(product1Data);
-        
-        // Set màu và size mặc định cho sản phẩm 1
-        if (product1Data.colors?.length > 0) {
-          const firstColor = product1Data.colors[0];
-          setSelectedColor(firstColor);
-          if (firstColor.sizes?.length > 0) {
-            setSelectedSize(firstColor.sizes[0].size);
-          }
+        if (firstColor.sizes?.length > 0) {
+          const firstSize = firstColor.sizes[0];
+          console.log('✅ Setting default size for product 1:', firstSize);
+          setSelectedSize(firstSize.size);
         }
       }
       
-      // Fetch thông tin đầy đủ của sản phẩm combo nếu chưa có
-      if (!comboProductFull) {
-        const response = await axiosInstance.get(`/api/products/${comboProduct.productID}`);
+      // Fetch thông tin đầy đủ của sản phẩm combo - LUÔN LUÔN LOAD MỚI
+      if (comboProduct) {
+        console.log('Fetching full details for product 2...');
+        const response = await axiosInstance.get(`/api/products/${comboProduct.productID}?t=${Date.now()}`);
         
         // Xử lý response có thể có .product hoặc trực tiếp
         const product2Data = response.data.product || response.data;
         
+        console.log('🔍 Product 2 API Response:', product2Data);
+        console.log('🔍 Product 2 Colors:', product2Data.colors);
+        if (product2Data.colors?.[0]?.sizes?.[0]) {
+          console.log('🔍 Product 2 First Size Object:', JSON.stringify(product2Data.colors[0].sizes[0]));
+        }
+        
         setComboProductFull(product2Data);
         
-        // Set màu và size mặc định cho sản phẩm 2
+        // ✅ Set màu và size mặc định cho sản phẩm 2
         if (product2Data.colors?.length > 0) {
           const firstColor = product2Data.colors[0];
-          setComboSelectedColor(firstColor);
+          console.log('✅ Setting default color for product 2:', firstColor);
+          setComboSelectedColor(firstColor); // ✅ Set object có colorID
+          
           if (firstColor.sizes?.length > 0) {
-            setComboSelectedSize(firstColor.sizes[0].size);
+            const firstSize = firstColor.sizes[0];
+            console.log('✅ Setting default size for product 2:', firstSize);
+            setComboSelectedSize(firstSize.size);
           }
         }
       }
+      
+      console.log('=== COMBO MODAL OPENED ===');
+      
     } catch (error) {
-      console.error('Error loading combo product details:', error);
+      console.error('❌ Error loading combo product details:', error);
       toast.error('Không thể tải thông tin sản phẩm combo');
     }
   };
