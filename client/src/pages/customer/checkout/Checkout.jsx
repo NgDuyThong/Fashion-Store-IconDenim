@@ -292,7 +292,7 @@ const Checkout = () => {
   // Xử lý thay đổi thông tin giao hàng
   const handleShippingChange = (e) => {
     const { name, value } = e.target;
-    
+
     // Nếu là số điện thoại, chỉ cho phép nhập số
     if (name === 'phone') {
       const phoneRegex = /^[0-9]*$/;
@@ -449,18 +449,33 @@ const Checkout = () => {
   const getAddressFromCoords = async (latitude, longitude) => {
     try {
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&zoom=18&addressdetails=1`,
+        {
+          headers: {
+            'User-Agent': 'ngduythong1412@gmail.com',
+            'Accept-Language': 'vi'
+          }
+        }
       );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
+
+      if (!data || !data.address) {
+        throw new Error('Không tìm thấy địa chỉ cho vị trí này');
+      }
 
       // Format địa chỉ từ dữ liệu OpenStreetMap
       const address = data.address;
       const formattedAddress = [
         address.house_number, // Số nhà
         address.road, // Đường
-        address.suburb, // Phường/xã
-        address.city_district, // Quận/huyện
-        address.city || address.town, // Thành phố/thị xã
+        address.suburb || address.neighbourhood, // Phường/xã
+        address.city_district || address.county, // Quận/huyện
+        address.city || address.town || address.province, // Thành phố/thị xã
         address.state, // Tỉnh/thành phố
         'Việt Nam'
       ].filter(Boolean).join(', ');
@@ -468,48 +483,132 @@ const Checkout = () => {
       return formattedAddress;
     } catch (error) {
       console.error('Lỗi khi lấy địa chỉ từ tọa độ(Checkout.jsx):', error);
-      throw new Error('Không thể lấy địa chỉ từ tọa độ');
+      throw new Error('Không thể lấy địa chỉ từ tọa độ. Vui lòng thử lại sau.');
     }
   };
 
   // Thêm hàm lấy vị trí hiện tại
   const getCurrentLocation = async () => {
     setIsLoadingLocation(true);
+
     try {
       // Kiểm tra hỗ trợ Geolocation
       if (!navigator.geolocation) {
-        throw new Error('Trình duyệt không hỗ trợ định vị');
+        toast.error('Trình duyệt không hỗ trợ định vị');
+        return;
       }
 
+      // Kiểm tra quyền truy cập trước
+      if (navigator.permissions) {
+        try {
+          const permissionStatus = await navigator.permissions.query({ name: 'geolocation' });
+          console.log('Trạng thái quyền vị trí:', permissionStatus.state);
+
+          if (permissionStatus.state === 'denied') {
+            toast.error('Quyền truy cập vị trí đã bị từ chối. Vui lòng vào cài đặt trình duyệt để bật lại.');
+            return;
+          }
+        } catch (permErr) {
+          console.log('Không thể kiểm tra quyền:', permErr);
+        }
+      }
+
+      console.log('Đang lấy vị trí hiện tại...');
+
       // Lấy tọa độ hiện tại
-      const position = await new Promise((resolve, reject) => {
-        navigator.geolocation.getCurrentPosition(resolve, reject, {
-          enableHighAccuracy: true, // Độ chính xác cao hơn
-          timeout: 5000, // Thời gian chờ tối đa là 5 giây
-          maximumAge: 0 // Không sử dụng cache
-        });
+      let position = null;
+      let hasError = false;
+
+      await new Promise((resolve) => {
+        const timeoutId = setTimeout(() => {
+          if (!position) {
+            hasError = true;
+            resolve();
+          }
+        }, 10000);
+
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            console.log('Lấy vị trí thành công:', pos.coords);
+            position = pos;
+            clearTimeout(timeoutId);
+            resolve();
+          },
+          (err) => {
+            // Bỏ qua lỗi từ extension, chỉ log
+            console.warn('Cảnh báo geolocation (có thể từ extension):', err);
+            // Không reject, chờ xem có nhận được position không
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 10000,
+            maximumAge: 0
+          }
+        );
       });
+
+      // Kiểm tra xem có lấy được vị trí không
+      if (!position) {
+        throw new Error('Không thể lấy vị trí. Vui lòng kiểm tra quyền truy cập.');
+      }
 
       // Lấy vĩ độ và kinh độ
       const { latitude, longitude } = position.coords;
+      console.log('Tọa độ:', latitude, longitude);
 
       // Lấy địa chỉ từ tọa độ
-      const address = await getAddressFromCoords(latitude, longitude);
+      toast.info('Đang chuyển đổi tọa độ thành địa chỉ...');
 
-      // Cập nhật form với địa chỉ mới
-      setShippingInfo(prev => ({
-        ...prev,
-        address: address
-      }));
+      try {
+        const address = await getAddressFromCoords(latitude, longitude);
 
-      // Hiển thị form địa chỉ mới
-      setShowNewAddressForm(true);
-      setSelectedAddressId(null);
+        // Cập nhật form với địa chỉ mới
+        setShippingInfo(prev => ({
+          ...prev,
+          address: address
+        }));
 
-      toast.success('Đã lấy địa chỉ hiện tại thành công!');
+        // Hiển thị form địa chỉ mới
+        setShowNewAddressForm(true);
+        setSelectedAddressId(null);
+
+        toast.success('Đã lấy địa chỉ hiện tại thành công!');
+      } catch (addressError) {
+        console.error('Lỗi khi chuyển đổi địa chỉ:', addressError);
+
+        // Nếu không lấy được địa chỉ, hiển thị tọa độ
+        const coordsAddress = `Tọa độ: ${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+
+        setShippingInfo(prev => ({
+          ...prev,
+          address: coordsAddress
+        }));
+
+        setShowNewAddressForm(true);
+        setSelectedAddressId(null);
+
+        toast.warning('Đã lấy tọa độ thành công nhưng không thể chuyển đổi thành địa chỉ. Vui lòng nhập địa chỉ thủ công.');
+      }
     } catch (error) {
-      console.error('Lỗi khi lấy vị trí hiện tại(Checkout.jsx):', error);
-      toast.error(error.message || 'Không thể lấy vị trí hiện tại');
+      console.error('Lỗi khi lấy vị trí:', error);
+
+      // Xử lý các loại lỗi khác nhau
+      let errorMessage = 'Không thể lấy vị trí hiện tại';
+
+      if (error.code === 1) {
+        // PERMISSION_DENIED
+        errorMessage = 'Bạn cần cho phép truy cập vị trí. Hãy click vào biểu tượng khóa/thông tin trên thanh địa chỉ và bật quyền "Vị trí".';
+      } else if (error.code === 2) {
+        // POSITION_UNAVAILABLE
+        errorMessage = 'Không thể xác định vị trí. Vui lòng kiểm tra GPS hoặc kết nối mạng.';
+      } else if (error.code === 3) {
+        // TIMEOUT
+        errorMessage = 'Hết thời gian chờ. Vui lòng thử lại.';
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      toast.error(errorMessage);
     } finally {
       setIsLoadingLocation(false);
     }
@@ -518,7 +617,7 @@ const Checkout = () => {
   // Hàm xử lý thanh toán PayOS
   const handlePayOSPayment = async () => {
     setIsProcessingPayment(true);
-    
+
     try {
       // Validate thông tin giao hàng trước
       if (!validateShipping()) {
@@ -533,7 +632,7 @@ const Checkout = () => {
       }
 
       const checkoutItems = JSON.parse(checkoutItemsStr);
-      
+
       // Tính tổng tiền cuối cùng
       const finalTotalAndShip = checkoutItems.finalTotal + SHIPPING_FEE;
 
@@ -588,12 +687,11 @@ const Checkout = () => {
 
   // Trạng thái loading
   if (loading) {
-    return ( 
-      <div className={`min-h-screen ${
-        theme === 'tet' 
-          ? 'bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50' 
-          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-      }`}>
+    return (
+      <div className={`min-h-screen ${theme === 'tet'
+        ? 'bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50'
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+        }`}>
         <PageBanner
           theme={theme}
           icon={FaCreditCard}
@@ -619,11 +717,10 @@ const Checkout = () => {
   // Giỏ hàng trống
   if (!cart?.items?.length) {
     return (
-      <div className={`min-h-screen ${
-        theme === 'tet' 
-          ? 'bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50' 
-          : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-      }`}>
+      <div className={`min-h-screen ${theme === 'tet'
+        ? 'bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50'
+        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+        }`}>
         <PageBanner
           theme={theme}
           icon={FaCreditCard}
@@ -643,8 +740,8 @@ const Checkout = () => {
             <Link
               to="/products"
               className={`inline-block px-6 py-3 rounded-xl font-medium text-white ${theme === 'tet'
-                  ? 'bg-red-500 hover:bg-red-600'
-                  : 'bg-blue-500 hover:bg-blue-600'
+                ? 'bg-red-500 hover:bg-red-600'
+                : 'bg-blue-500 hover:bg-blue-600'
                 }`}
             >
               Tiếp tục mua sắm
@@ -656,11 +753,10 @@ const Checkout = () => {
   }
 
   return (
-    <div className={`min-h-screen ${
-      theme === 'tet' 
-        ? 'bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50' 
-        : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
-    }`}>
+    <div className={`min-h-screen ${theme === 'tet'
+      ? 'bg-gradient-to-br from-red-50 via-orange-50 to-yellow-50'
+      : 'bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50'
+      }`}>
       <PageBanner
         theme={theme}
         icon={FaCreditCard}
@@ -698,10 +794,10 @@ const Checkout = () => {
                     {/* Circle */}
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center border-2 mb-1.5 transition-colors ${step >= 1
-                          ? theme === 'tet'
-                            ? 'bg-red-600 border-red-600 text-white'
-                            : 'bg-blue-600 border-blue-600 text-white'
-                          : 'bg-white border-gray-300 text-gray-300'
+                        ? theme === 'tet'
+                          ? 'bg-red-600 border-red-600 text-white'
+                          : 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-300'
                         }`}
                     >
                       {step > 1 ? <FaCheck className="w-3 h-3" /> : 1}
@@ -709,10 +805,10 @@ const Checkout = () => {
                     {/* Label */}
                     <span
                       className={`text-xs font-medium text-center ${step >= 1
-                          ? theme === 'tet'
-                            ? 'text-red-600'
-                            : 'text-blue-600'
-                          : 'text-gray-400'
+                        ? theme === 'tet'
+                          ? 'text-red-600'
+                          : 'text-blue-600'
+                        : 'text-gray-400'
                         }`}
                     >
                       Thông tin giao hàng
@@ -723,10 +819,10 @@ const Checkout = () => {
                     {/* Circle */}
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center border-2 mb-1.5 transition-colors ${step >= 2
-                          ? theme === 'tet'
-                            ? 'bg-red-600 border-red-600 text-white'
-                            : 'bg-blue-600 border-blue-600 text-white'
-                          : 'bg-white border-gray-300 text-gray-300'
+                        ? theme === 'tet'
+                          ? 'bg-red-600 border-red-600 text-white'
+                          : 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-300'
                         }`}
                     >
                       {step > 2 ? <FaCheck className="w-3 h-3" /> : 2}
@@ -734,10 +830,10 @@ const Checkout = () => {
                     {/* Label */}
                     <span
                       className={`text-xs font-medium text-center ${step >= 2
-                          ? theme === 'tet'
-                            ? 'text-red-600'
-                            : 'text-blue-600'
-                          : 'text-gray-400'
+                        ? theme === 'tet'
+                          ? 'text-red-600'
+                          : 'text-blue-600'
+                        : 'text-gray-400'
                         }`}
                     >
                       Phương thức thanh toán
@@ -748,10 +844,10 @@ const Checkout = () => {
                     {/* Circle */}
                     <div
                       className={`w-6 h-6 rounded-full flex items-center justify-center border-2 mb-1.5 transition-colors ${step >= 3
-                          ? theme === 'tet'
-                            ? 'bg-red-600 border-red-600 text-white'
-                            : 'bg-blue-600 border-blue-600 text-white'
-                          : 'bg-white border-gray-300 text-gray-300'
+                        ? theme === 'tet'
+                          ? 'bg-red-600 border-red-600 text-white'
+                          : 'bg-blue-600 border-blue-600 text-white'
+                        : 'bg-white border-gray-300 text-gray-300'
                         }`}
                     >
                       {step > 3 ? <FaCheck className="w-3 h-3" /> : 3}
@@ -759,10 +855,10 @@ const Checkout = () => {
                     {/* Label */}
                     <span
                       className={`text-xs font-medium text-center ${step >= 3
-                          ? theme === 'tet'
-                            ? 'text-red-600'
-                            : 'text-blue-600'
-                          : 'text-gray-400'
+                        ? theme === 'tet'
+                          ? 'text-red-600'
+                          : 'text-blue-600'
+                        : 'text-gray-400'
                         }`}
                     >
                       Xác nhận đơn hàng
@@ -843,9 +939,8 @@ const Checkout = () => {
                             name="phone"
                             value={shippingInfo.phone}
                             onChange={handleShippingChange}
-                            className={`w-full px-4 py-3 rounded-lg border ${
-                              errors.phone ? 'border-red-500' : 'border-gray-300'
-                            } focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
+                            className={`w-full px-4 py-3 rounded-lg border ${errors.phone ? 'border-red-500' : 'border-gray-300'
+                              } focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all`}
                             placeholder="Nhập số điện thoại"
                             maxLength="10"
                           />
@@ -889,10 +984,10 @@ const Checkout = () => {
                               <label
                                 key={addr.addressID}
                                 className={`flex items-start p-4 rounded-xl border-2 cursor-pointer transition-all ${selectedAddressId === addr.addressID
-                                    ? theme === 'tet'
-                                      ? 'border-red-500 bg-red-50'
-                                      : 'border-blue-500 bg-blue-50'
-                                    : 'border-gray-200 hover:border-gray-300'
+                                  ? theme === 'tet'
+                                    ? 'border-red-500 bg-red-50'
+                                    : 'border-blue-500 bg-blue-50'
+                                  : 'border-gray-200 hover:border-gray-300'
                                   }`}
                               >
                                 <input
@@ -921,10 +1016,10 @@ const Checkout = () => {
                           type="button"
                           onClick={toggleNewAddressForm}
                           className={`w-full mb-4 px-4 py-3 rounded-xl border-2 border-dashed font-medium transition-all ${showNewAddressForm
-                              ? theme === 'tet'
-                                ? 'border-red-500 bg-red-50 text-red-600'
-                                : 'border-blue-500 bg-blue-50 text-blue-600'
-                              : 'border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-700'
+                            ? theme === 'tet'
+                              ? 'border-red-500 bg-red-50 text-red-600'
+                              : 'border-blue-500 bg-blue-50 text-blue-600'
+                            : 'border-gray-300 hover:border-gray-400 text-gray-600 hover:text-gray-700'
                             }`}
                         >
                           {showNewAddressForm ? '← Quay lại chọn địa chỉ có sẵn' : '+ Thêm địa chỉ mới'}
@@ -1069,8 +1164,8 @@ const Checkout = () => {
                     <button
                       onClick={handleNextStep}
                       className={`flex-1 py-2.5 sm:py-3 rounded-xl text-white font-medium transition-all duration-300 ${theme === 'tet'
-                          ? 'bg-red-600 hover:bg-red-700'
-                          : 'bg-blue-600 hover:bg-blue-700'
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
                         }`}
                     >
                       Tiếp tục
@@ -1080,11 +1175,11 @@ const Checkout = () => {
                       onClick={paymentMethod === 'banking' ? handlePayOSPayment : handlePlaceOrderCOD}
                       disabled={orderLoading}
                       className={`flex-1 py-2.5 sm:py-3 rounded-xl text-white font-medium transition-all duration-300 ${theme === 'tet'
-                          ? 'bg-red-600 hover:bg-red-700'
-                          : 'bg-blue-600 hover:bg-blue-700'
+                        ? 'bg-red-600 hover:bg-red-700'
+                        : 'bg-blue-600 hover:bg-blue-700'
                         } ${orderLoading ? 'opacity-70 cursor-not-allowed' : ''}`}
                     >
-                      {orderLoading ? 'Đang xử lý...' : paymentMethod === 'banking' 
+                      {orderLoading ? 'Đang xử lý...' : paymentMethod === 'banking'
                         ? `Thanh toán qua PayOS (${formatPrice(cart.finalTotal + SHIPPING_FEE)}đ)`
                         : `Đặt hàng (${formatPrice(cart.finalTotal + SHIPPING_FEE)}đ)`
                       }

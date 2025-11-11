@@ -15,11 +15,11 @@ const generationConfig = {
     topP: 0.95,
     topK: 64,
     maxOutputTokens: 65536,
-  };
+};
 
 // Khởi tạo model với cấu hình mới
 const model = genAI.getGenerativeModel({
-    model: "gemini-2.0-flash-thinking-exp-01-21",
+    model: "gemini-2.5-flash",
     generationConfig
 });
 

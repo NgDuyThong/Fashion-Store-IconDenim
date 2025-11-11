@@ -1,4 +1,4 @@
-// PaymentPolicy.jsx - Trang chính sách thanh toán của TVT Store
+// PaymentPolicy.jsx - Trang chính sách thanh toán của IconDenim
 import React from 'react';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
 import PageBanner from '../../../components/PageBanner';
@@ -117,14 +117,14 @@ const PaymentPolicy = () => {
               <div>
                 <p className="font-medium">Ngân hàng Vietcombank:</p>
                 <p>- Số tài khoản: 1234567890</p>
-                <p>- Chủ tài khoản: CÔNG TY TNHH TVT STORE</p>
+                <p>- Chủ tài khoản: CÔNG TY TNHH IconDenim</p>
                 <p>- Chi nhánh: TP.HCM</p>
               </div>
               {/* Thông tin tài khoản MBBank */}
               <div>
                 <p className="font-medium">Ngân hàng MBBank:</p>
                 <p>- Số tài khoản: 0782485283</p>
-                <p>- Chủ tài khoản: CÔNG TY TNHH TVT STORE</p>
+                <p>- Chủ tài khoản: CÔNG TY TNHH IconDenim</p>
                 <p>- Chi nhánh: TP.HCM</p>
               </div>
               {/* Lưu ý khi chuyển khoản */}

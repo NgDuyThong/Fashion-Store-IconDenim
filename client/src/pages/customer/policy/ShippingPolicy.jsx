@@ -1,4 +1,4 @@
-// ShippingPolicy.jsx - Trang chính sách vận chuyển của TVT Store
+// ShippingPolicy.jsx - Trang chính sách vận chuyển của IconDenim
 import React from 'react';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
 import PageBanner from '../../../components/PageBanner';
@@ -72,7 +72,7 @@ const ShippingPolicy = () => {
         <PageBanner 
           icon={FaTruck}
           title="CHÍNH SÁCH VẬN CHUYỂN"
-          subtitle="Thông tin chi tiết về dịch vụ vận chuyển của TVT Store"
+          subtitle="Thông tin chi tiết về dịch vụ vận chuyển của IconDenim"
           breadcrumbText="Vận chuyển"
         />
 

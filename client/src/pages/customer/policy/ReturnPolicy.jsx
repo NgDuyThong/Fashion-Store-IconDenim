@@ -1,4 +1,4 @@
-// ReturnPolicy.jsx - Trang chính sách đổi trả của TVT Store
+// ReturnPolicy.jsx - Trang chính sách đổi trả của IconDenim
 import React from 'react';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
 import PageBanner from '../../../components/PageBanner';
@@ -72,7 +72,7 @@ const ReturnPolicy = () => {
         <PageBanner 
           icon={FaInfoCircle}
           title="CHÍNH SÁCH ĐỔI TRẢ"
-          subtitle="Thông tin về quy định đổi trả hàng tại TVT Store"
+          subtitle="Thông tin về quy định đổi trả hàng tại IconDenim"
           breadcrumbText="Đổi trả"
         />
 

@@ -1,4 +1,4 @@
-// Policy.jsx - Trang chính sách chung của TVT Store
+// Policy.jsx - Trang chính sách chung của IconDenim
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
@@ -74,7 +74,7 @@ const Policy = () => {
         <PageBanner 
           icon={FaInfoCircle}
           title="CHÍNH SÁCH"
-          subtitle="Các chính sách và quy định của TVT Store"
+          subtitle="Các chính sách và quy định của IconDenim"
           breadcrumbText="Chính sách"
         />
 
@@ -126,7 +126,7 @@ const Policy = () => {
             <h2 className="text-2xl font-bold mb-4">Cam kết của chúng tôi</h2>
             <div className="space-y-4 text-gray-600">
               <p>
-                Tại TVT Store, chúng tôi cam kết:
+                Tại IconDenim, chúng tôi cam kết:
               </p>
               {/* Danh sách các cam kết */}
               <ul className="list-disc list-inside space-y-2 ml-4">
