@@ -25,8 +25,15 @@ router.get('/recommendations/:productID', CoHUIController.getProductRecommendati
 // @params  productID (path), minutil, mincor, topN (query)
 router.get('/bought-together/:productID', CoHUIController.getBoughtTogether);
 
+// @route   POST /api/cohui/cart-recommendations
+// @desc    Lấy gợi ý sản phẩm cho giỏ hàng (NEW - Optimized)
+// @access  Public
+// @body    { cartItems: [productID1, productID2, ...] }
+// @params  topN, minCorrelation (query)
+router.post('/cart-recommendations', CoHUIController.getCartRecommendations);
+
 // @route   POST /api/cohui/cart-analysis
-// @desc    Phân tích giỏ hàng và gợi ý sản phẩm bổ sung
+// @desc    Phân tích giỏ hàng và gợi ý sản phẩm bổ sung (OLD - Python real-time)
 // @access  Public (hoặc Customer nếu cần auth)
 // @body    { cartItems: [productID1, productID2, ...] }
 // @params  minutil, mincor, topN (query)

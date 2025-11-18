@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { FiSearch, FiEdit2, FiTrash2, FiEye, FiX, FiShoppingCart, FiClock, FiCheck, FiAlertCircle, FiUser, FiPackage, FiShoppingBag, FiDollarSign, FiLoader, FiEdit, FiFilter, FiRefreshCw } from 'react-icons/fi';
+import { FiSearch, FiEdit2, FiTrash2, FiEye, FiX, FiShoppingCart, FiClock, FiCheck, FiAlertCircle, FiUser, FiPackage, FiShoppingBag, FiDollarSign, FiLoader, FiEdit, FiFilter, FiRefreshCw, FiFileText, FiDownload } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../utils/axios';
 import { useTheme } from '../../contexts/AdminThemeContext';
 import { formatDate, formatDateTime } from '../../utils/dateUtils';
+import { generateSalesInvoicePDF, generateOrderConfirmationPDF } from '../../utils/pdfGenerator';
 
 const OrderManagement = () => {
     const { isDarkMode } = useTheme();
@@ -50,6 +51,10 @@ const OrderManagement = () => {
 
     // ===== STATE MỚI ĐỂ LƯU TRỮ totalPrice =====
     const [orderTotalPrice, setOrderTotalPrice] = useState(0);
+
+    // ===== STATE CHO XUẤT HÓA ĐƠN THEO NGÀY =====
+    const [isDateInvoiceModalOpen, setIsDateInvoiceModalOpen] = useState(false);
+    const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
 
     // ===== API CALLS =====
     // ===== LẤY TẤT CẢ ĐƠN HÀNG =====
@@ -277,6 +282,156 @@ const OrderManagement = () => {
                 return 'Đã hủy vận chuyển';
             default:
                 return 'Không xác định';
+        }
+    };
+
+    // ===== HANDLERS CHO PDF EXPORT =====
+    const handleExportSalesInvoice = async (order) => {
+        try {
+            // Lấy chi tiết đơn hàng trực tiếp từ API
+            const response = await axiosInstance.get(`/api/admin/order-details/${order.orderID}`);
+            
+            if (!response.data || !response.data.orderDetails) {
+                toast.error('Không thể lấy thông tin đơn hàng');
+                return;
+            }
+
+            const details = response.data.orderDetails;
+            const totalPrice = response.data.totalPrice;
+
+            // Chuẩn bị data cho PDF
+            const invoiceData = {
+                orderID: order.orderID,
+                customerName: order.fullname,
+                customerAddress: order.address,
+                customerPhone: order.phoneNumber,
+                shopAddress: '484 Le Van Sy, Phuong 14, Quan 3, TP. Ho Chi Minh',
+                shopPhone: '0123456789',
+                items: details.map(detail => ({
+                    productName: detail.product?.name || 'San pham khong xac dinh',
+                    color: detail.product?.color?.colorName || '',
+                    size: detail.size || '',
+                    quantity: detail.quantity,
+                    price: Number(detail.product?.price?.toString().replace(/\./g, '') || 0)
+                })),
+                totalPrice: totalPrice,
+                paymentPrice: order.totalPrice, // Giá gốc từ order
+                finalPrice: order.paymentPrice, // Giá sau giảm
+                discount: order.totalPrice - order.paymentPrice, // Số tiền giảm
+                totalInWords: ''
+            };
+
+            generateSalesInvoicePDF(invoiceData);
+            toast.success('Xuất hóa đơn thành công!');
+        } catch (error) {
+            console.error('Lỗi khi xuất hóa đơn:', error);
+            toast.error('Không thể xuất hóa đơn');
+        }
+    };
+
+    const handleExportOrderConfirmation = async (order) => {
+        try {
+            // Lấy chi tiết đơn hàng trực tiếp từ API
+            const response = await axiosInstance.get(`/api/admin/order-details/${order.orderID}`);
+            
+            if (!response.data || !response.data.orderDetails) {
+                toast.error('Không thể lấy thông tin đơn hàng');
+                return;
+            }
+
+            const details = response.data.orderDetails;
+
+            // Chuẩn bị data cho PDF
+            const confirmationData = {
+                orderID: order.orderID,
+                customerName: order.fullname,
+                customerAddress: order.address,
+                customerPhone: order.phoneNumber,
+                createdAt: order.createdAt,
+                items: details.map(detail => ({
+                    productName: detail.product?.name || 'San pham khong xac dinh',
+                    color: detail.product?.color?.colorName || '',
+                    size: detail.size || '',
+                    quantity: detail.quantity,
+                    price: Number(detail.product?.price?.toString().replace(/\./g, '') || 0)
+                })),
+                totalPrice: order.totalPrice, // Giá gốc
+                finalPrice: order.paymentPrice, // Giá sau giảm
+                discount: order.totalPrice - order.paymentPrice // Số tiền giảm
+            };
+
+            generateOrderConfirmationPDF(confirmationData);
+            toast.success('Xuất xác nhận đơn hàng thành công!');
+        } catch (error) {
+            console.error('Lỗi khi xuất xác nhận:', error);
+            toast.error('Không thể xuất xác nhận đơn hàng');
+        }
+    };
+
+    // ===== HANDLER XUẤT HÓA ĐƠN THEO NGÀY =====
+    const handleExportDailyInvoice = async () => {
+        try {
+            if (!selectedDate) {
+                toast.error('Vui lòng chọn ngày');
+                return;
+            }
+
+            // Lọc đơn hàng theo ngày được chọn
+            const selectedDateObj = new Date(selectedDate);
+            const ordersOnDate = orders.filter(order => {
+                const orderDate = new Date(order.createdAt);
+                return orderDate.toDateString() === selectedDateObj.toDateString();
+            });
+
+            if (ordersOnDate.length === 0) {
+                toast.error('Không có đơn hàng nào trong ngày này');
+                return;
+            }
+
+            // Lấy chi tiết tất cả đơn hàng trong ngày
+            const allOrderDetails = [];
+            for (const order of ordersOnDate) {
+                const response = await axiosInstance.get(`/api/admin/order-details/${order.orderID}`);
+                if (response.data && response.data.orderDetails) {
+                    allOrderDetails.push({
+                        order: order,
+                        details: response.data.orderDetails,
+                        totalPrice: response.data.totalPrice
+                    });
+                }
+            }
+
+            // Chuẩn bị data cho PDF hóa đơn theo ngày
+            const dailyInvoiceData = {
+                date: selectedDate,
+                orders: allOrderDetails.map(item => ({
+                    orderID: item.order.orderID,
+                    customerName: item.order.fullname,
+                    customerAddress: item.order.address,
+                    items: item.details.map(detail => ({
+                        productName: detail.product?.name || 'San pham khong xac dinh',
+                        color: detail.product?.color?.colorName || '',
+                        size: detail.size || '',
+                        quantity: detail.quantity,
+                        price: Number(detail.product?.price?.toString().replace(/\./g, '') || 0)
+                    })),
+                    totalPrice: item.order.totalPrice, // Giá gốc từ order
+                    finalPrice: item.order.paymentPrice, // Giá sau giảm
+                    discount: item.order.totalPrice - item.order.paymentPrice // Số tiền giảm
+                })),
+                shopAddress: '484 Le Van Sy, Phuong 14, Quan 3, TP. Ho Chi Minh',
+                shopPhone: '0123456789'
+            };
+
+            // Import function từ pdfGenerator
+            const { generateDailyInvoicePDF } = await import('../../utils/pdfGenerator');
+            generateDailyInvoicePDF(dailyInvoiceData);
+            
+            toast.success(`Xuất hóa đơn ngày ${new Date(selectedDate).toLocaleDateString('vi-VN')} thành công!`);
+            setIsDateInvoiceModalOpen(false);
+        } catch (error) {
+            console.error('Lỗi khi xuất hóa đơn theo ngày:', error);
+            toast.error('Không thể xuất hóa đơn theo ngày');
         }
     };
 
@@ -905,11 +1060,20 @@ const OrderManagement = () => {
         <div className={`min-h-screen ${isDarkMode ? 'bg-gray-900 text-white' : 'bg-gray-100'} py-8`}>
             <div className="container mx-auto px-4">
                 {/* Header */}
-                <div className="mb-6">
-                    <h1 className="text-5xl font-bold mb-2">Quản lý đơn hàng</h1>
-                    <p className={`text-lg ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
-                        Quản lý và theo dõi tất cả đơn hàng của bạn
-                    </p>
+                <div className="flex justify-between items-center mb-6">
+                    <div>
+                        <h1 className="text-5xl font-bold mb-2">Quản lý đơn hàng</h1>
+                        <p className={`text-lg ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                            Quản lý và theo dõi tất cả đơn hàng của bạn
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => setIsDateInvoiceModalOpen(true)}
+                        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                    >
+                        <FiFileText className="text-xl" />
+                        Xuất hóa đơn theo ngày
+                    </button>
                 </div>
 
                 {/* Thống kê */}
@@ -1215,6 +1379,26 @@ const OrderManagement = () => {
                                                     >
                                                         <FiEdit className="w-5 h-5" />
                                                     </button>
+                                                    <button
+                                                        onClick={() => handleExportSalesInvoice(order)}
+                                                        className={`p-2 rounded-lg transition-colors ${isDarkMode
+                                                            ? 'bg-green-400/10 hover:bg-green-400/20 text-green-400'
+                                                            : 'bg-green-100 hover:bg-green-200 text-green-600'
+                                                        }`}
+                                                        title="Xuất hóa đơn"
+                                                    >
+                                                        <FiFileText className="w-5 h-5" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleExportOrderConfirmation(order)}
+                                                        className={`p-2 rounded-lg transition-colors ${isDarkMode
+                                                            ? 'bg-purple-400/10 hover:bg-purple-400/20 text-purple-400'
+                                                            : 'bg-purple-100 hover:bg-purple-200 text-purple-600'
+                                                        }`}
+                                                        title="Xuất xác nhận đơn"
+                                                    >
+                                                        <FiDownload className="w-5 h-5" />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -1314,6 +1498,109 @@ const OrderManagement = () => {
 
             {renderEditModal()}
             {renderOrderDetailsModal()}
+
+            {/* ===== MODAL XUẤT HÓA ĐƠN THEO NGÀY ===== */}
+            {isDateInvoiceModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                    <div className={`relative w-full max-w-md rounded-2xl shadow-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        {/* Header */}
+                        <div className={`flex items-center justify-between p-6 border-b ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 rounded-xl bg-green-500/20">
+                                    <FiFileText className="text-2xl text-green-500" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold">Xuất hóa đơn theo ngày</h2>
+                                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        Chọn ngày để xuất hóa đơn tất cả đơn hàng
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsDateInvoiceModalOpen(false)}
+                                className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <FiX className="w-6 h-6" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-6">
+                            {/* Chọn ngày */}
+                            <div>
+                                <label className={`block text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                    Chọn ngày xuất hóa đơn *
+                                </label>
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    max={new Date().toISOString().split('T')[0]}
+                                    className={`w-full p-4 rounded-lg border-2 text-lg transition-all ${
+                                        isDarkMode 
+                                            ? 'bg-gray-700 border-gray-600 text-white focus:border-green-500' 
+                                            : 'bg-white border-gray-300 focus:border-green-500'
+                                    } focus:ring-2 focus:ring-green-500/20 focus:outline-none`}
+                                />
+                            </div>
+
+                            {/* Thông tin đơn hàng trong ngày */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <div className="flex items-center gap-2 mb-2">
+                                    <FiShoppingBag className="text-green-500" />
+                                    <span className="font-semibold">Thông tin</span>
+                                </div>
+                                <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                    Số đơn hàng trong ngày:{' '}
+                                    <span className="font-bold text-green-500">
+                                        {orders.filter(order => {
+                                            const orderDate = new Date(order.createdAt);
+                                            const selected = new Date(selectedDate);
+                                            return orderDate.toDateString() === selected.toDateString();
+                                        }).length}
+                                    </span>
+                                </p>
+                            </div>
+
+                            {/* Lưu ý */}
+                            <div className={`p-4 rounded-xl border-2 ${isDarkMode ? 'bg-blue-900/20 border-blue-500/30' : 'bg-blue-50 border-blue-200'}`}>
+                                <div className="flex gap-3">
+                                    <FiAlertCircle className="text-blue-500 flex-shrink-0 mt-0.5" />
+                                    <div className={`text-sm ${isDarkMode ? 'text-blue-300' : 'text-blue-700'}`}>
+                                        <p className="font-semibold mb-1">Lưu ý:</p>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            <li>Hóa đơn bao gồm tất cả đơn hàng trong ngày</li>
+                                            <li>Chi tiết từng đơn hàng và khách hàng</li>
+                                            <li>File PDF sẽ tự động download</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`flex justify-end gap-3 p-6 border-t ${isDarkMode ? 'border-gray-700' : 'border-gray-200'}`}>
+                            <button
+                                onClick={() => setIsDateInvoiceModalOpen(false)}
+                                className={`px-6 py-3 rounded-lg font-medium transition-colors ${
+                                    isDarkMode 
+                                        ? 'bg-gray-700 hover:bg-gray-600' 
+                                        : 'bg-gray-200 hover:bg-gray-300'
+                                }`}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleExportDailyInvoice}
+                                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold rounded-lg shadow-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105"
+                            >
+                                <FiDownload />
+                                Xuất hóa đơn
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

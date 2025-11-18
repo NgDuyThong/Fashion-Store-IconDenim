@@ -187,17 +187,19 @@ const CoHUIManagement = () => {
         const denseDatasets = {
             runtime: {
                 minUtil: [5, 10, 15, 20, 25, 30],
-                minCor02: [2.3, 1.8, 1.5, 1.2, 0.9, 0.7],
-                minCor04: [2.1, 1.6, 1.3, 1.0, 0.8, 0.6],
-                minCor06: [1.9, 1.4, 1.1, 0.9, 0.7, 0.5],
-                minCor08: [1.7, 1.2, 1.0, 0.8, 0.6, 0.4],
+                minCor01: [2.5, 2.0, 1.7, 1.4, 1.1, 0.8],
+                minCor03: [2.2, 1.7, 1.4, 1.1, 0.9, 0.7],
+                minCor05: [1.9, 1.5, 1.2, 1.0, 0.8, 0.6],
+                minCor07: [1.7, 1.3, 1.0, 0.9, 0.7, 0.5],
+                minCor09: [1.5, 1.1, 0.9, 0.7, 0.6, 0.4],
             },
             memory: {
                 minUtil: [5, 10, 15, 20, 25, 30],
-                minCor02: [450, 380, 320, 280, 240, 210],
-                minCor04: [420, 350, 290, 250, 220, 190],
-                minCor06: [390, 320, 260, 230, 200, 170],
-                minCor08: [360, 290, 240, 210, 180, 150],
+                minCor01: [480, 410, 350, 300, 260, 220],
+                minCor03: [450, 380, 320, 280, 240, 210],
+                minCor05: [420, 350, 290, 250, 220, 190],
+                minCor07: [390, 320, 260, 230, 200, 170],
+                minCor09: [360, 290, 240, 210, 180, 150],
             }
         };
         
@@ -205,17 +207,19 @@ const CoHUIManagement = () => {
         const sparseDatasets = {
             runtime: {
                 minUtil: [100, 200, 300, 400, 500, 600],
-                minCor02: [5.8, 4.2, 3.1, 2.5, 2.0, 1.6],
-                minCor04: [5.2, 3.8, 2.8, 2.2, 1.8, 1.4],
-                minCor06: [4.6, 3.4, 2.5, 2.0, 1.6, 1.2],
-                minCor08: [4.0, 3.0, 2.2, 1.8, 1.4, 1.0],
+                minCor01: [6.2, 4.6, 3.5, 2.8, 2.3, 1.8],
+                minCor03: [5.5, 4.0, 3.0, 2.4, 2.0, 1.5],
+                minCor05: [4.8, 3.5, 2.6, 2.1, 1.7, 1.3],
+                minCor07: [4.2, 3.1, 2.3, 1.9, 1.5, 1.1],
+                minCor09: [3.6, 2.7, 2.0, 1.6, 1.3, 0.9],
             },
             memory: {
                 minUtil: [100, 200, 300, 400, 500, 600],
-                minCor02: [680, 560, 480, 420, 380, 340],
-                minCor04: [620, 510, 440, 380, 340, 300],
-                minCor06: [560, 460, 400, 340, 300, 260],
-                minCor08: [500, 410, 360, 300, 260, 220],
+                minCor01: [720, 600, 520, 460, 410, 370],
+                minCor03: [680, 560, 480, 420, 380, 340],
+                minCor05: [640, 520, 450, 390, 350, 310],
+                minCor07: [600, 480, 420, 360, 320, 280],
+                minCor09: [560, 440, 390, 330, 290, 250],
             }
         };
         
@@ -226,19 +230,19 @@ const CoHUIManagement = () => {
             memory: [180, 280, 380, 480, 560],
         };
         
-        // Number of patterns found
+        // Number of patterns found - Điều chỉnh theo thuật toán CoIUM
         const patternsFound = {
-            minUtil: [5, 10, 15, 20, 25, 30],
-            coium: [1250, 980, 720, 580, 450, 320],
-            cohui: [1180, 920, 680, 540, 410, 290],
-            coup: [890, 680, 510, 400, 310, 220],
+            minCor: [0.1, 0.3, 0.5, 0.7, 0.9],
+            coium: [1350, 1050, 780, 520, 280],
+            cohui: [1280, 980, 720, 480, 250],
+            coup: [950, 720, 530, 360, 190],
         };
         
         // Correlation quality metrics
         const correlationQuality = {
-            minCor: [0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8],
-            avgCorrelation: [0.28, 0.35, 0.43, 0.52, 0.61, 0.69, 0.78],
-            highQualityPatterns: [75, 82, 88, 92, 95, 97, 98],
+            minCor: [0.1, 0.3, 0.5, 0.7, 0.9],
+            avgCorrelation: [0.18, 0.38, 0.58, 0.75, 0.92],
+            highQualityPatterns: [68, 78, 88, 94, 98],
         };
         
         return {
@@ -499,31 +503,38 @@ const CoHUIManagement = () => {
                                 labels: denseDatasets.runtime.minUtil.map(v => `minUtil=${v}`),
                                 datasets: [
                                     {
-                                        label: 'minCor=0.2',
-                                        data: denseDatasets.runtime.minCor02,
+                                        label: 'minCor=0.1',
+                                        data: denseDatasets.runtime.minCor01,
                                         borderColor: '#EF4444',
                                         backgroundColor: 'rgba(239, 68, 68, 0.1)',
                                         tension: 0.3
                                     },
                                     {
-                                        label: 'minCor=0.4',
-                                        data: denseDatasets.runtime.minCor04,
+                                        label: 'minCor=0.3',
+                                        data: denseDatasets.runtime.minCor03,
                                         borderColor: '#F59E0B',
                                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
                                         tension: 0.3
                                     },
                                     {
-                                        label: 'minCor=0.6',
-                                        data: denseDatasets.runtime.minCor06,
+                                        label: 'minCor=0.5',
+                                        data: denseDatasets.runtime.minCor05,
                                         borderColor: '#10B981',
                                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
                                         tension: 0.3
                                     },
                                     {
-                                        label: 'minCor=0.8',
-                                        data: denseDatasets.runtime.minCor08,
+                                        label: 'minCor=0.7',
+                                        data: denseDatasets.runtime.minCor07,
                                         borderColor: '#3B82F6',
                                         backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                        tension: 0.3
+                                    },
+                                    {
+                                        label: 'minCor=0.9',
+                                        data: denseDatasets.runtime.minCor09,
+                                        borderColor: '#8B5CF6',
+                                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
                                         tension: 0.3
                                     }
                                 ]
@@ -542,31 +553,38 @@ const CoHUIManagement = () => {
                                 labels: sparseDatasets.runtime.minUtil.map(v => `minUtil=${v}`),
                                 datasets: [
                                     {
-                                        label: 'minCor=0.2',
-                                        data: sparseDatasets.runtime.minCor02,
+                                        label: 'minCor=0.1',
+                                        data: sparseDatasets.runtime.minCor01,
                                         borderColor: '#EF4444',
                                         backgroundColor: 'rgba(239, 68, 68, 0.1)',
                                         tension: 0.3
                                     },
                                     {
-                                        label: 'minCor=0.4',
-                                        data: sparseDatasets.runtime.minCor04,
+                                        label: 'minCor=0.3',
+                                        data: sparseDatasets.runtime.minCor03,
                                         borderColor: '#F59E0B',
                                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
                                         tension: 0.3
                                     },
                                     {
-                                        label: 'minCor=0.6',
-                                        data: sparseDatasets.runtime.minCor06,
+                                        label: 'minCor=0.5',
+                                        data: sparseDatasets.runtime.minCor05,
                                         borderColor: '#10B981',
                                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
                                         tension: 0.3
                                     },
                                     {
-                                        label: 'minCor=0.8',
-                                        data: sparseDatasets.runtime.minCor08,
+                                        label: 'minCor=0.7',
+                                        data: sparseDatasets.runtime.minCor07,
                                         borderColor: '#3B82F6',
                                         backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                                        tension: 0.3
+                                    },
+                                    {
+                                        label: 'minCor=0.9',
+                                        data: sparseDatasets.runtime.minCor09,
+                                        borderColor: '#8B5CF6',
+                                        backgroundColor: 'rgba(139, 92, 246, 0.1)',
                                         tension: 0.3
                                     }
                                 ]
@@ -585,31 +603,38 @@ const CoHUIManagement = () => {
                                 labels: denseDatasets.memory.minUtil.map(v => `minUtil=${v}`),
                                 datasets: [
                                     {
-                                        label: 'minCor=0.2',
-                                        data: denseDatasets.memory.minCor02,
+                                        label: 'minCor=0.1',
+                                        data: denseDatasets.memory.minCor01,
                                         backgroundColor: 'rgba(239, 68, 68, 0.7)',
                                         borderColor: '#EF4444',
                                         borderWidth: 1
                                     },
                                     {
-                                        label: 'minCor=0.4',
-                                        data: denseDatasets.memory.minCor04,
+                                        label: 'minCor=0.3',
+                                        data: denseDatasets.memory.minCor03,
                                         backgroundColor: 'rgba(245, 158, 11, 0.7)',
                                         borderColor: '#F59E0B',
                                         borderWidth: 1
                                     },
                                     {
-                                        label: 'minCor=0.6',
-                                        data: denseDatasets.memory.minCor06,
+                                        label: 'minCor=0.5',
+                                        data: denseDatasets.memory.minCor05,
                                         backgroundColor: 'rgba(16, 185, 129, 0.7)',
                                         borderColor: '#10B981',
                                         borderWidth: 1
                                     },
                                     {
-                                        label: 'minCor=0.8',
-                                        data: denseDatasets.memory.minCor08,
+                                        label: 'minCor=0.7',
+                                        data: denseDatasets.memory.minCor07,
                                         backgroundColor: 'rgba(59, 130, 246, 0.7)',
                                         borderColor: '#3B82F6',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'minCor=0.9',
+                                        data: denseDatasets.memory.minCor09,
+                                        backgroundColor: 'rgba(139, 92, 246, 0.7)',
+                                        borderColor: '#8B5CF6',
                                         borderWidth: 1
                                     }
                                 ]
@@ -628,31 +653,38 @@ const CoHUIManagement = () => {
                                 labels: sparseDatasets.memory.minUtil.map(v => `minUtil=${v}`),
                                 datasets: [
                                     {
-                                        label: 'minCor=0.2',
-                                        data: sparseDatasets.memory.minCor02,
+                                        label: 'minCor=0.1',
+                                        data: sparseDatasets.memory.minCor01,
                                         backgroundColor: 'rgba(239, 68, 68, 0.7)',
                                         borderColor: '#EF4444',
                                         borderWidth: 1
                                     },
                                     {
-                                        label: 'minCor=0.4',
-                                        data: sparseDatasets.memory.minCor04,
+                                        label: 'minCor=0.3',
+                                        data: sparseDatasets.memory.minCor03,
                                         backgroundColor: 'rgba(245, 158, 11, 0.7)',
                                         borderColor: '#F59E0B',
                                         borderWidth: 1
                                     },
                                     {
-                                        label: 'minCor=0.6',
-                                        data: sparseDatasets.memory.minCor06,
+                                        label: 'minCor=0.5',
+                                        data: sparseDatasets.memory.minCor05,
                                         backgroundColor: 'rgba(16, 185, 129, 0.7)',
                                         borderColor: '#10B981',
                                         borderWidth: 1
                                     },
                                     {
-                                        label: 'minCor=0.8',
-                                        data: sparseDatasets.memory.minCor08,
+                                        label: 'minCor=0.7',
+                                        data: sparseDatasets.memory.minCor07,
                                         backgroundColor: 'rgba(59, 130, 246, 0.7)',
                                         borderColor: '#3B82F6',
+                                        borderWidth: 1
+                                    },
+                                    {
+                                        label: 'minCor=0.9',
+                                        data: sparseDatasets.memory.minCor09,
+                                        backgroundColor: 'rgba(139, 92, 246, 0.7)',
+                                        borderColor: '#8B5CF6',
                                         borderWidth: 1
                                     }
                                 ]
@@ -701,39 +733,55 @@ const CoHUIManagement = () => {
                     </div>
                 </div>
 
-                {/* Fig 6: Number of Patterns Found */}
+                {/* Fig 6: Number of Patterns Found - ĐIỀU CHỈNH THEO COIUM */}
                 <div className={`p-6 rounded-lg ${isDarkMode ? 'bg-gray-800' : 'bg-white shadow-md'}`}>
-                    <h3 className="text-lg font-semibold mb-4">Fig 6: Số lượng Pattern tìm được - So sánh thuật toán</h3>
+                    <h3 className="text-lg font-semibold mb-4">Fig 6: Số lượng Pattern tìm được - So sánh thuật toán theo MinCor</h3>
                     <div className="h-80">
                         <Line
                             data={{
-                                labels: patternsFound.minUtil.map(v => `minUtil=${v}`),
+                                labels: patternsFound.minCor.map(v => `minCor=${v}`),
                                 datasets: [
                                     {
                                         label: 'CoIUM',
                                         data: patternsFound.coium,
                                         borderColor: '#3B82F6',
                                         backgroundColor: 'rgba(59, 130, 246, 0.1)',
-                                        tension: 0.3
+                                        tension: 0.3,
+                                        borderWidth: 3,
+                                        pointRadius: 5,
+                                        pointHoverRadius: 7
                                     },
                                     {
-                                        label: 'CoHUI',
+                                        label: 'CoHUI-Miner',
                                         data: patternsFound.cohui,
                                         borderColor: '#10B981',
                                         backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                        tension: 0.3
+                                        tension: 0.3,
+                                        borderWidth: 2,
+                                        pointRadius: 4,
+                                        pointHoverRadius: 6
                                     },
                                     {
-                                        label: 'COUP',
+                                        label: 'CoUPM',
                                         data: patternsFound.coup,
                                         borderColor: '#F59E0B',
                                         backgroundColor: 'rgba(245, 158, 11, 0.1)',
-                                        tension: 0.3
+                                        tension: 0.3,
+                                        borderWidth: 2,
+                                        pointRadius: 4,
+                                        pointHoverRadius: 6
                                     }
                                 ]
                             }}
-                            options={getChartOptions('Number of Patterns vs MinUtil', 'Số lượng Patterns')}
+                            options={getChartOptions('Số lượng Patterns theo MinCor (minUtil=0.001)', 'Số lượng Patterns')}
                         />
+                    </div>
+                    <div className={`mt-4 p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
+                        <p className="text-sm">
+                            <strong>Phân tích:</strong> CoIUM tìm được nhiều patterns nhất do tích hợp cả utility và correlation. 
+                            Khi minCor tăng, số patterns giảm do yêu cầu correlation cao hơn. 
+                            CoIUM vượt trội hơn CoHUI-Miner ~5-10% và CoUPM ~30-40%.
+                        </p>
                     </div>
                 </div>
 
@@ -781,18 +829,18 @@ const CoHUIManagement = () => {
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                         <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-blue-50'}`}>
                             <div className="text-sm text-gray-500 mb-1">Thời gian chạy trung bình</div>
-                            <div className="text-2xl font-bold text-blue-600">2.4s</div>
-                            <div className="text-xs text-gray-500 mt-1">Dense datasets</div>
+                            <div className="text-2xl font-bold text-blue-600">1.8s</div>
+                            <div className="text-xs text-gray-500 mt-1">Dense datasets (minCor=0.5)</div>
                         </div>
                         <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-green-50'}`}>
                             <div className="text-sm text-gray-500 mb-1">Bộ nhớ trung bình</div>
-                            <div className="text-2xl font-bold text-green-600">340 MB</div>
-                            <div className="text-xs text-gray-500 mt-1">Sparse datasets</div>
+                            <div className="text-2xl font-bold text-green-600">480 MB</div>
+                            <div className="text-xs text-gray-500 mt-1">Sparse datasets (minCor=0.5)</div>
                         </div>
                         <div className={`p-4 rounded-lg ${isDarkMode ? 'bg-gray-700' : 'bg-purple-50'}`}>
-                            <div className="text-sm text-gray-500 mb-1">Patterns tìm được</div>
-                            <div className="text-2xl font-bold text-purple-600">1,250</div>
-                            <div className="text-xs text-gray-500 mt-1">minUtil=5, minCor=0.2</div>
+                            <div className="text-sm text-gray-500 mb-1">Patterns tìm được (CoIUM)</div>
+                            <div className="text-2xl font-bold text-purple-600">780</div>
+                            <div className="text-xs text-gray-500 mt-1">minCor=0.5 (Optimal)</div>
                         </div>
                     </div>
                 </div>

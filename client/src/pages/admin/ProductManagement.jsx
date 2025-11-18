@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { FiSearch, FiPackage, FiEye, FiEdit, FiList, FiPlus, FiUser } from 'react-icons/fi';
+import { FiSearch, FiPackage, FiEye, FiEdit, FiList, FiPlus, FiUser, FiDownload, FiFileText } from 'react-icons/fi';
 import { toast } from 'react-toastify';
 import axios from '../../utils/axios';
 import { useTheme } from '../../contexts/AdminThemeContext';
 import { formatDate } from '../../utils/dateUtils';
 import ImageUpload from '../../components/ImageUpload';
 import MultipleImageUpload from '../../components/MultipleImageUpload';
+import { generateInventoryImportPDF } from '../../utils/pdfGenerator';
 
 // Component quản lý sản phẩm
 const ProductManagement = () => {
@@ -100,6 +101,20 @@ const ProductManagement = () => {
                 ]
             }
         ]
+    });
+
+    // ===== PHIẾU NHẬP KHO =====
+    const [isInventoryImportModalOpen, setIsInventoryImportModalOpen] = useState(false);
+    const [inventoryImportData, setInventoryImportData] = useState({
+        importNumber: '',
+        debtorNumber: '',
+        creditorNumber: '',
+        deliveryPerson: '',
+        issuer: '',
+        warehouseLocation: '',
+        items: [],
+        totalInWords: '',
+        attachedDocuments: ''
     });
 
     // ===== EFFECTS =====
@@ -639,6 +654,77 @@ const ProductManagement = () => {
         }
     };
 
+    // ===== HANDLERS CHO PHIẾU NHẬP KHO =====
+    const handleOpenInventoryImport = () => {
+        // Khởi tạo với 1 item mẫu
+        setInventoryImportData({
+            importNumber: `NK${Date.now().toString().slice(-6)}`,
+            debtorNumber: '',
+            creditorNumber: '',
+            deliveryPerson: '',
+            issuer: '',
+            warehouseLocation: '',
+            items: [{
+                productName: '',
+                productCode: '',
+                unit: 'Cai',
+                quantity: 0,
+                actualQuantity: 0,
+                price: 0,
+                total: 0
+            }],
+            totalInWords: '',
+            attachedDocuments: ''
+        });
+        setIsInventoryImportModalOpen(true);
+    };
+
+    const handleAddInventoryItem = () => {
+        setInventoryImportData({
+            ...inventoryImportData,
+            items: [...inventoryImportData.items, {
+                productName: '',
+                productCode: '',
+                unit: 'Cai',
+                quantity: 0,
+                actualQuantity: 0,
+                price: 0,
+                total: 0
+            }]
+        });
+    };
+
+    const handleRemoveInventoryItem = (index) => {
+        const newItems = inventoryImportData.items.filter((_, i) => i !== index);
+        setInventoryImportData({ ...inventoryImportData, items: newItems });
+    };
+
+    const handleInventoryItemChange = (index, field, value) => {
+        const newItems = [...inventoryImportData.items];
+        newItems[index][field] = value;
+        
+        // Tự động tính tổng tiền
+        if (field === 'quantity' || field === 'price') {
+            newItems[index].total = newItems[index].quantity * newItems[index].price;
+            if (!newItems[index].actualQuantity) {
+                newItems[index].actualQuantity = newItems[index].quantity;
+            }
+        }
+        
+        setInventoryImportData({ ...inventoryImportData, items: newItems });
+    };
+
+    const handleGenerateInventoryImportPDF = () => {
+        try {
+            const fileName = generateInventoryImportPDF(inventoryImportData);
+            toast.success(`Xuất phiếu nhập kho thành công: ${fileName}`);
+            setIsInventoryImportModalOpen(false);
+        } catch (error) {
+            console.error('Lỗi khi xuất PDF:', error);
+            toast.error('Không thể xuất phiếu nhập kho');
+        }
+    };
+
     // Thêm hàm xử lý xóa sản phẩm
     const handleDeleteProduct = async (product) => {
         try {
@@ -711,12 +797,20 @@ const ProductManagement = () => {
                             Quản lý và theo dõi tất cả sản phẩm của bạn
                         </p>
                     </div>
-                    <button
-                        onClick={() => setIsAddProductModalOpen(true)}
-                        className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-4 rounded-lg transition-colors duration-300"
-                    >
-                        <FiPlus className="mr-2" /> Thêm sản phẩm
-                    </button>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={handleOpenInventoryImport}
+                            className="flex items-center justify-center bg-blue-500 hover:bg-blue-600 text-white font-bold py-2.5 px-4 rounded-lg transition-colors duration-300"
+                        >
+                            <FiFileText className="mr-2" /> Phiếu Nhập Kho
+                        </button>
+                        <button
+                            onClick={() => setIsAddProductModalOpen(true)}
+                            className="flex items-center justify-center bg-green-500 hover:bg-green-600 text-white font-bold py-2.5 px-4 rounded-lg transition-colors duration-300"
+                        >
+                            <FiPlus className="mr-2" /> Thêm sản phẩm
+                        </button>
+                    </div>
                 </div>
 
                 {/* Thống kê */}
@@ -2055,6 +2149,283 @@ const ProductManagement = () => {
                                 </button>
                             </div>
                         </form>
+                    </div>
+                </div>
+            )}
+
+            {/* ===== MODAL PHIẾU NHẬP KHO ===== */}
+            {isInventoryImportModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                    <div className={`relative w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        {/* Header */}
+                        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 rounded-xl bg-blue-500/20">
+                                    <FiFileText className="text-2xl text-blue-500" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold">Phiếu Nhập Kho</h2>
+                                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        Điền thông tin để xuất phiếu nhập kho PDF
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsInventoryImportModalOpen(false)}
+                                className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-6">
+                            {/* Thông tin chung */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <h3 className="text-lg font-semibold mb-4">Thông tin phiếu</h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Số phiếu *
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.importNumber}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, importNumber: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="NK123456"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Nợ
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.debtorNumber}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, debtorNumber: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Có
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.creditorNumber}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, creditorNumber: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Người giao hàng
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.deliveryPerson}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, deliveryPerson: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="Nguyễn Văn A"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Đơn vị phát hành
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.issuer}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, issuer: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="Công ty ABC"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Nhập tại kho
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.warehouseLocation}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, warehouseLocation: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="Kho chính - Địa điểm"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Danh sách sản phẩm */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <div className="flex justify-between items-center mb-4">
+                                    <h3 className="text-lg font-semibold">Danh sách hàng hóa</h3>
+                                    <button
+                                        type="button"
+                                        onClick={handleAddInventoryItem}
+                                        className="flex items-center gap-2 px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg transition-colors"
+                                    >
+                                        <FiPlus /> Thêm hàng hóa
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {inventoryImportData.items.map((item, index) => (
+                                        <div key={index} className={`p-4 rounded-lg border relative ${isDarkMode ? 'bg-gray-800 border-gray-600' : 'bg-white border-gray-200'}`}>
+                                            {inventoryImportData.items.length > 1 && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => handleRemoveInventoryItem(index)}
+                                                    className="absolute top-2 right-2 p-2 text-red-500 hover:bg-red-100 dark:hover:bg-red-900/20 rounded-lg transition-colors"
+                                                >
+                                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                                    </svg>
+                                                </button>
+                                            )}
+                                            
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div className="col-span-2">
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        Tên hàng hóa *
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.productName}
+                                                        onChange={(e) => handleInventoryItemChange(index, 'productName', e.target.value)}
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                        placeholder="Áo Polo Nam"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        Mã số
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={item.productCode}
+                                                        onChange={(e) => handleInventoryItemChange(index, 'productCode', e.target.value)}
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                        placeholder="SP001"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        ĐVT
+                                                    </label>
+                                                    <select
+                                                        value={item.unit}
+                                                        onChange={(e) => handleInventoryItemChange(index, 'unit', e.target.value)}
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                    >
+                                                        <option value="Cai">Cái</option>
+                                                        <option value="Hop">Hộp</option>
+                                                        <option value="Thung">Thùng</option>
+                                                    </select>
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        Số lượng *
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={item.quantity}
+                                                        onChange={(e) => handleInventoryItemChange(index, 'quantity', parseInt(e.target.value) || 0)}
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                        min="0"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        Thực nhập
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={item.actualQuantity}
+                                                        onChange={(e) => handleInventoryItemChange(index, 'actualQuantity', parseInt(e.target.value) || 0)}
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                        min="0"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        Đơn giá (VND) *
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        value={item.price}
+                                                        onChange={(e) => handleInventoryItemChange(index, 'price', parseInt(e.target.value) || 0)}
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-700 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                                        min="0"
+                                                    />
+                                                </div>
+                                                <div>
+                                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                                        Thành tiền
+                                                    </label>
+                                                    <input
+                                                        type="text"
+                                                        value={new Intl.NumberFormat('vi-VN').format(item.total)}
+                                                        readOnly
+                                                        className={`w-full p-2 rounded-lg border ${isDarkMode ? 'bg-gray-600 border-gray-600 text-gray-300' : 'bg-gray-100 border-gray-300 text-gray-600'} cursor-not-allowed`}
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Thông tin bổ sung */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <h3 className="text-lg font-semibold mb-4">Thông tin bổ sung</h3>
+                                <div className="space-y-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Tổng tiền (viết bằng chữ)
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.totalInWords}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, totalInWords: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="Một triệu hai trăm nghìn đồng"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Số chứng từ gốc kèm theo
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={inventoryImportData.attachedDocuments}
+                                            onChange={(e) => setInventoryImportData({ ...inventoryImportData, attachedDocuments: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="01 bản gốc"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`sticky bottom-0 flex justify-end gap-3 p-6 border-t ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                            <button
+                                onClick={() => setIsInventoryImportModalOpen(false)}
+                                className={`px-6 py-3 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleGenerateInventoryImportPDF}
+                                className="flex items-center gap-2 px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors"
+                            >
+                                <FiDownload /> Xuất PDF
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

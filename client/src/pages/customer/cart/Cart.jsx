@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { FaShoppingCart, FaTrash, FaMinus, FaPlus, FaArrowRight, FaGift, FaTimes, FaChevronRight, FaHome } from 'react-icons/fa';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
 import PageBanner from '../../../components/PageBanner';
+import RecommendationCarousel from '../../../components/RecommendationCarousel';
 import { toast } from 'react-toastify';
 import axiosInstance from '../../../utils/axios';
 
@@ -30,6 +31,10 @@ const Cart = () => {
 
   // State cho popup xác nhận xóa nhiều
   const [showDeleteConfirmMultiple, setShowDeleteConfirmMultiple] = useState(false);
+
+  // State cho Cart Recommendations
+  const [recommendations, setRecommendations] = useState([]);
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false);
 
   // Format giá tiền
   const formatPrice = (price) => {
@@ -154,6 +159,60 @@ const Cart = () => {
   useEffect(() => {
     fetchCart();
   }, []);
+
+  // Fetch Cart Recommendations từ CoIUM
+  const fetchCartRecommendations = async (items) => {
+    // Chỉ fetch nếu có items trong giỏ hàng
+    if (!items || items.length === 0) {
+      setRecommendations([]);
+      return;
+    }
+
+    try {
+      setRecommendationsLoading(true);
+      
+      // Lấy danh sách productID từ cart items
+      const productIDs = items.map(item => item.product.productID);
+      
+      console.log('🛒 Fetching cart recommendations for:', productIDs);
+
+      // Gọi API
+      const response = await axiosInstance.post('/api/cohui/cart-recommendations', {
+        cartItems: productIDs
+      }, {
+        params: {
+          topN: 8,
+          minCorrelation: 0.5
+        }
+      });
+
+      if (response.data.success && response.data.recommendations) {
+        console.log(`✅ Got ${response.data.recommendations.length} recommendations`);
+        setRecommendations(response.data.recommendations);
+      } else {
+        setRecommendations([]);
+      }
+    } catch (error) {
+      console.error('Error fetching cart recommendations:', error);
+      setRecommendations([]);
+    } finally {
+      setRecommendationsLoading(false);
+    }
+  };
+
+  // Fetch recommendations khi cartItems thay đổi
+  useEffect(() => {
+    if (cartItems && cartItems.length > 0 && !loading) {
+      // Debounce để tránh gọi API quá nhiều lần
+      const timer = setTimeout(() => {
+        fetchCartRecommendations(cartItems);
+      }, 500);
+
+      return () => clearTimeout(timer);
+    } else {
+      setRecommendations([]);
+    }
+  }, [cartItems, loading]);
 
   // Xử lý thay đổi số lượng sản phẩm
   const handleQuantityChange = async (cartID, newQuantity, stock) => {
@@ -1317,6 +1376,18 @@ const Cart = () => {
             )}
           </div>
         </div>
+      )}
+
+      {/* Cart Recommendations Section - NEW */}
+      {!loading && cartItems.length > 0 && (
+        <RecommendationCarousel
+          products={recommendations}
+          title="Bạn có thể cũng thích"
+          subtitle={`Dựa trên ${cartItems.length} sản phẩm trong giỏ hàng của bạn`}
+          loading={recommendationsLoading}
+          showCorrelation={true}
+          minSlides={4}
+        />
       )}
     </div>
   );

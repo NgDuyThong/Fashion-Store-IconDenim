@@ -8,18 +8,18 @@
       "price": 530000
     },
     {
-      "productID": 30,
-      "name": "Quần Khaki Regular Point Man",
-      "categoryID": 8,
-      "targetID": 1,
-      "price": 875000
-    },
-    {
       "productID": 10,
       "name": "Áo sơ mi Regular Linen Cotton",
       "categoryID": 2,
       "targetID": 1,
       "price": 300000
+    },
+    {
+      "productID": 30,
+      "name": "Quần Khaki Regular Point Man",
+      "categoryID": 8,
+      "targetID": 1,
+      "price": 875000
     }
   ],
   "2": [
@@ -842,18 +842,18 @@
       "price": 833000
     },
     {
-      "productID": 24,
-      "name": "Quần Tây Tuysi REGULAR FIT",
-      "categoryID": 7,
-      "targetID": 1,
-      "price": 903000
-    },
-    {
       "productID": 19,
       "name": "Áo khoác phao siêu nhẹ",
       "categoryID": 1,
       "targetID": 1,
       "price": 777000
+    },
+    {
+      "productID": 24,
+      "name": "Quần Tây Tuysi REGULAR FIT",
+      "categoryID": 7,
+      "targetID": 1,
+      "price": 903000
     },
     {
       "productID": 37,

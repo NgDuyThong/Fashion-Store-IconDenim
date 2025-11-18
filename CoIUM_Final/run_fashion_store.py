@@ -74,11 +74,12 @@ def run_fashion_store_analysis():
     print("="*80 + "\n")
     
     configs = [
-        # Test với mincor thấp để tìm nhiều patterns
+        # Test với mincor theo chuẩn 0.1, 0.3, 0.5, 0.7, 0.9
         {"mincor": 0.1, "minutil": 0.001, "maxlen": 3},
-        {"mincor": 0.2, "minutil": 0.001, "maxlen": 3},
-        {"mincor": 0.3, "minutil": 0.001, "maxlen": 4},
-        {"mincor": 0.1, "minutil": 0.002, "maxlen": 3},
+        {"mincor": 0.3, "minutil": 0.001, "maxlen": 3},
+        {"mincor": 0.5, "minutil": 0.001, "maxlen": 3},
+        {"mincor": 0.7, "minutil": 0.001, "maxlen": 3},
+        {"mincor": 0.9, "minutil": 0.001, "maxlen": 3},
     ]
     
     all_results = []

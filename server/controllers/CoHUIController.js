@@ -766,9 +766,224 @@ class CoHUIController {
     }
 
     /**
-     * API: Phân tích giỏ hàng và gợi ý
+     * API: Lấy gợi ý sản phẩm cho giỏ hàng (NEW - Optimized for Cart)
+     * POST /api/cohui/cart-recommendations
+     * Body: { cartItems: [productID1, productID2, ...] }
+     * 
+     * Tính năng:
+     * - Phân tích tất cả sản phẩm trong giỏ hàng
+     * - Tìm sản phẩm có correlation cao với items trong cart
+     * - Aggregate và rank recommendations
+     * - Filter duplicate và items đã có trong cart
+     */
+    static async getCartRecommendations(req, res) {
+        try {
+            const { cartItems = [] } = req.body;
+            const { topN = 8, minCorrelation = 0.5 } = req.query;
+
+            // Validate input
+            if (!Array.isArray(cartItems) || cartItems.length === 0) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Giỏ hàng trống',
+                    recommendations: [],
+                    cartItems: []
+                });
+            }
+
+            // Convert to integers
+            const cartProductIDs = cartItems.map(id => parseInt(id));
+            console.log(`🛒 Cart Recommendations Request: ${cartProductIDs.length} items in cart`);
+
+            // Load correlation map từ CoIUM
+            const correlationMapData = loadCorrelationMap();
+            
+            if (!correlationMapData) {
+                console.warn('⚠️  Không có correlation map cho cart recommendations, sử dụng fallback');
+                return CoHUIController.getCartRecommendationsFallback(req, res, cartProductIDs, parseInt(topN));
+            }
+
+            // Aggregate recommendations từ tất cả items trong cart
+            const recommendationScores = {};
+            const recommendationSources = {}; // Track sản phẩm nào recommend cái gì
+            
+            for (const productID of cartProductIDs) {
+                const recommendations = correlationMapData[productID];
+                
+                if (recommendations && recommendations.length > 0) {
+                    recommendations.forEach(rec => {
+                        const recProductID = rec.productID;
+                        
+                        // Skip nếu là sản phẩm đang có trong cart
+                        if (cartProductIDs.includes(recProductID)) {
+                            return;
+                        }
+                        
+                        // Aggregate scores (tính điểm tổng hợp)
+                        if (!recommendationScores[recProductID]) {
+                            recommendationScores[recProductID] = {
+                                totalScore: 0,
+                                count: 0,
+                                maxCorrelation: 0,
+                                sources: []
+                            };
+                        }
+                        
+                        const score = rec.correlationScore || 1.0;
+                        recommendationScores[recProductID].totalScore += score;
+                        recommendationScores[recProductID].count++;
+                        recommendationScores[recProductID].maxCorrelation = Math.max(
+                            recommendationScores[recProductID].maxCorrelation,
+                            score
+                        );
+                        recommendationScores[recProductID].sources.push(productID);
+                    });
+                }
+            }
+
+            // Calculate final scores và sort
+            const rankedRecommendations = Object.entries(recommendationScores)
+                .map(([productID, data]) => ({
+                    productID: parseInt(productID),
+                    avgCorrelation: data.totalScore / data.count,
+                    maxCorrelation: data.maxCorrelation,
+                    matchCount: data.count, // Số items trong cart match với sản phẩm này
+                    sources: data.sources,
+                    // Weighted score: avg correlation * match count (càng nhiều items match càng tốt)
+                    score: (data.totalScore / data.count) * Math.log(data.count + 1)
+                }))
+                .filter(rec => rec.avgCorrelation >= parseFloat(minCorrelation))
+                .sort((a, b) => b.score - a.score)
+                .slice(0, parseInt(topN));
+
+            console.log(`✅ Found ${rankedRecommendations.length} recommendations after filtering`);
+
+            // Lấy thông tin chi tiết sản phẩm từ DB
+            if (rankedRecommendations.length > 0) {
+                const recommendedProductIDs = rankedRecommendations.map(r => r.productID);
+                const products = await Product.find({ 
+                    productID: { $in: recommendedProductIDs },
+                    isActivated: { $ne: false }
+                }).lean();
+
+                // Map với thông tin đầy đủ
+                const fullRecommendations = rankedRecommendations
+                    .map(rec => {
+                        const product = products.find(p => p.productID === rec.productID);
+                        if (!product) return null;
+
+                        return {
+                            productID: product.productID,
+                            name: product.name,
+                            price: product.price,
+                            thumbnail: product.thumbnail,
+                            categoryID: product.categoryID,
+                            targetID: product.targetID,
+                            // Thống kê
+                            avgCorrelation: rec.avgCorrelation,
+                            maxCorrelation: rec.maxCorrelation,
+                            matchCount: rec.matchCount,
+                            score: rec.score,
+                            sources: rec.sources,
+                            source: 'CoIUM Cart Analysis'
+                        };
+                    })
+                    .filter(r => r !== null);
+
+                res.status(200).json({
+                    success: true,
+                    message: `Tìm thấy ${fullRecommendations.length} sản phẩm gợi ý cho giỏ hàng`,
+                    totalRecommendations: fullRecommendations.length,
+                    recommendations: fullRecommendations,
+                    cartItems: cartProductIDs,
+                    source: 'CoIUM',
+                    description: 'Sản phẩm được gợi ý dựa trên correlation với items trong giỏ hàng'
+                });
+            } else {
+                // Không tìm thấy recommendations, dùng fallback
+                console.warn('⚠️  Không tìm thấy recommendations phù hợp, sử dụng fallback');
+                return CoHUIController.getCartRecommendationsFallback(req, res, cartProductIDs, parseInt(topN));
+            }
+
+        } catch (error) {
+            console.error('Error in getCartRecommendations:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi khi lấy gợi ý cho giỏ hàng',
+                error: error.message
+            });
+        }
+    }
+
+    /**
+     * Fallback cho Cart Recommendations
+     * Lấy sản phẩm cùng category với items trong cart
+     */
+    static async getCartRecommendationsFallback(req, res, cartProductIDs, topN = 8) {
+        try {
+            // Lấy thông tin các sản phẩm trong cart
+            const cartProducts = await Product.find({ 
+                productID: { $in: cartProductIDs } 
+            }).lean();
+
+            if (cartProducts.length === 0) {
+                return res.status(200).json({
+                    success: true,
+                    message: 'Giỏ hàng trống',
+                    recommendations: [],
+                    cartItems: cartProductIDs
+                });
+            }
+
+            // Lấy categories và targets từ cart
+            const categories = [...new Set(cartProducts.map(p => p.categoryID))];
+            const targets = [...new Set(cartProducts.map(p => p.targetID))];
+
+            // Lấy sản phẩm cùng category/target (chỉ lấy sản phẩm đang hoạt động)
+            const recommendations = await Product.find({
+                productID: { $nin: cartProductIDs },
+                $or: [
+                    { categoryID: { $in: categories }, targetID: { $in: targets } },
+                    { categoryID: { $in: categories} }
+                ],
+                isActivated: { $ne: false }
+            }).limit(topN).lean();
+
+            const formattedRecommendations = recommendations.map(p => ({
+                productID: p.productID,
+                name: p.name,
+                price: p.price,
+                thumbnail: p.thumbnail,
+                categoryID: p.categoryID,
+                targetID: p.targetID,
+                source: 'Fallback (Same Category)'
+            }));
+
+            res.status(200).json({
+                success: true,
+                message: `Gợi ý ${formattedRecommendations.length} sản phẩm liên quan`,
+                totalRecommendations: formattedRecommendations.length,
+                recommendations: formattedRecommendations,
+                cartItems: cartProductIDs,
+                source: 'Fallback',
+                description: 'Sản phẩm cùng danh mục với items trong giỏ hàng'
+            });
+
+        } catch (error) {
+            console.error('Error in getCartRecommendationsFallback:', error);
+            res.status(500).json({
+                success: false,
+                message: 'Lỗi khi lấy gợi ý fallback',
+                error: error.message
+            });
+        }
+    }
+
+    /**
+     * API: Phân tích giỏ hàng và gợi ý (OLD VERSION - Python real-time)
      * POST /api/cohui/cart-analysis
      * Body: { cartItems: [productID1, productID2, ...] }
+     * Giữ lại để backup
      */
     static async analyzeCart(req, res) {
         try {

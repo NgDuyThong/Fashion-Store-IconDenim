@@ -2,12 +2,13 @@
 
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
-import { FaShoppingCart, FaHeart, FaStar, FaMinus, FaPlus, FaArrowRight, FaHome, FaChevronRight, FaRegHeart, FaTag, FaEye, FaMedal, FaRuler, FaPalette, FaBolt, FaChevronDown, FaInfoCircle, FaPhoneAlt, FaFacebookMessenger, FaEdit, FaTrash, FaTshirt, FaTimes, FaCheck } from 'react-icons/fa';
+import { FaShoppingCart, FaHeart, FaStar, FaMinus, FaPlus, FaArrowRight, FaHome, FaChevronRight, FaRegHeart, FaTag, FaEye, FaMedal, FaRuler, FaPalette, FaBolt, FaChevronDown, FaInfoCircle, FaPhoneAlt, FaFacebookMessenger, FaEdit, FaTrash, FaTshirt, FaTimes, FaCheck, FaFire } from 'react-icons/fa';
 import { Swiper, SwiperSlide } from 'swiper/react';
 import { Navigation, Pagination, Autoplay, Thumbs, EffectFade, EffectCreative, EffectCards } from 'swiper/modules';
 import { useTheme } from '../../../contexts/CustomerThemeContext';
 import axiosInstance from '../../../utils/axios';
 import { toast } from 'react-toastify';
+import RecommendationCarousel from '../../../components/RecommendationCarousel';
 import 'swiper/css';
 import 'swiper/css/navigation';
 import 'swiper/css/pagination';
@@ -2267,143 +2268,34 @@ const ProductDetail = () => {
         )}
       </div>
 
-      {/* Section Sản phẩm tương tự - CoHUI Recommendations với Fallback */}
+      {/* Section Sản phẩm tương tự - CoHUI Recommendations với Fallback - IMPROVED */}
       {similarProducts.length > 0 && (
-        <div className="mt-16 border-t pt-12">
-          <div className="mb-8">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className={`text-2xl font-bold ${theme === 'tet' ? 'text-red-800' : 'text-gray-800'}`}>
-                  {similarProducts[0]?.isFallback ? 'Sản phẩm liên quan' : 'Sản phẩm tương tự'}
-                </h2>
-                <p className="text-sm text-gray-500 mt-1">
-                  {similarProducts[0]?.isFallback ? (
-                    <>
-                      <FaTshirt className="inline mr-1" />
-                      Sản phẩm cùng danh mục với giá tương đương
-                    </>
-                  ) : (
-                    <>
-                      <FaBolt className="inline mr-1" />
-                      Các sản phẩm thường được mua cùng nhau • Được đề xuất bởi thuật toán CoHUI
-                    </>
-                  )}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          {similarLoading ? (
-            <div className="flex justify-center py-12">
-              <div className={`inline-block w-12 h-12 rounded-full border-4 border-t-transparent animate-spin ${
-                theme === 'tet' ? 'border-red-500' : 'border-blue-500'
-              }`}></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-6">
-              {similarProducts.slice(0, 5).map((item, index) => {
-                const product = item.productDetails;
-                if (!product) return null;
-
-                return (
-                  <Link
-                    key={index}
-                    to={`/product/${product.productID}`}
-                    className="group"
-                  >
-                    <div className={`bg-white rounded-xl overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 transform hover:-translate-y-2 ${
-                      theme === 'tet' ? 'border-2 border-red-100 hover:border-red-300' : 'border border-gray-100 hover:border-gray-300'
-                    }`}>
-                      {/* Product Image */}
-                      <div className="relative aspect-square overflow-hidden bg-gray-50">
-                        <img
-                          src={product.thumbnail || product.image || product.images?.[0] || '/placeholder-product.png'}
-                          alt={product.name}
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                        />
-                        
-                        {/* Confidence/Similarity Badge */}
-                        <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-medium shadow-lg ${
-                          item.isFallback
-                            ? theme === 'tet' 
-                              ? 'bg-orange-500 text-white' 
-                              : 'bg-green-500 text-white'
-                            : theme === 'tet' 
-                              ? 'bg-red-600 text-white' 
-                              : 'bg-blue-600 text-white'
-                        }`}>
-                          {item.isFallback ? (
-                            <>
-                              <FaTshirt className="inline mr-1" />
-                              {item.confidence}% tương đồng
-                            </>
-                          ) : (
-                            <>
-                              <FaBolt className="inline mr-1" />
-                              {item.confidence?.toFixed(1)}% tương quan
-                            </>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Product Info */}
-                      <div className="p-4">
-                        <h3 className="font-medium text-gray-800 line-clamp-2 mb-2 min-h-[3rem]">
-                          {product.name}
-                        </h3>
-                        
-                        {/* Price */}
-                        <div className="flex items-center justify-between">
-                          <span className={`text-lg font-bold ${
-                            theme === 'tet' ? 'text-red-600' : 'text-blue-600'
-                          }`}>
-                            {product.price?.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ".")}₫
-                          </span>
-                        </div>
-
-                        {/* Rating */}
-                        {product.averageRating > 0 && (
-                          <div className="flex items-center gap-1 mt-2">
-                            <div className="flex text-yellow-400">
-                              {[...Array(5)].map((_, i) => (
-                                <FaStar
-                                  key={i}
-                                  className={`w-3 h-3 ${
-                                    i < Math.floor(product.averageRating) ? 'fill-current' : 'fill-gray-300'
-                                  }`}
-                                />
-                              ))}
-                            </div>
-                            <span className="text-xs text-gray-500">
-                              ({product.averageRating.toFixed(1)})
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-
-          {/* View All Button */}
-          {similarProducts.length > 5 && (
-            <div className="text-center mt-8">
-              <button
-                onClick={() => navigate('/products')}
-                className={`inline-flex items-center gap-2 px-6 py-3 rounded-full font-medium transition-all duration-300 ${
-                  theme === 'tet'
-                    ? 'bg-red-600 hover:bg-red-700 text-white'
-                    : 'bg-blue-600 hover:bg-blue-700 text-white'
-                }`}
-              >
-                Xem thêm sản phẩm
-                <FaArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-          )}
-        </div>
+        <RecommendationCarousel
+          products={similarProducts.map(item => {
+            const prod = item.productDetails || item;
+            return {
+              productID: prod.productID,
+              name: prod.name,
+              price: prod.price,
+              thumbnail: prod.thumbnail || prod.image || prod.images?.[0],
+              categoryID: prod.categoryID,
+              targetID: prod.targetID,
+              avgCorrelation: item.correlation || item.correlationScore || (item.confidence / 100),
+              source: item.isFallback ? 'Cùng danh mục' : 'CoIUM',
+              isFallback: item.isFallback
+            };
+          })}
+          title={similarProducts[0]?.isFallback ? 'Sản phẩm liên quan' : 'Sản phẩm tương tự'}
+          subtitle={
+            similarProducts[0]?.isFallback 
+              ? 'Sản phẩm cùng danh mục với giá tương đương'
+              : 'Các sản phẩm thường được mua cùng nhau • Được đề xuất bởi thuật toán CoIUM'
+          }
+          icon={similarProducts[0]?.isFallback ? FaTshirt : FaFire}
+          loading={similarLoading}
+          showCorrelation={!similarProducts[0]?.isFallback}
+          minSlides={5}
+        />
       )}
 
       {/* Modal Combo - Phóng to để chọn màu và size */}

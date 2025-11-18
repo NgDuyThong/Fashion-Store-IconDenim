@@ -1,9 +1,10 @@
 // Import các thư viện cần thiết
 import { useState, useEffect } from 'react';
 import axios from '../../utils/axios';  // Import axios đã được cấu hình sẵn
-import { FiSearch, FiEdit2, FiUserX, FiUserCheck, FiUser, FiPower } from 'react-icons/fi'; // Import các icon
+import { FiSearch, FiEdit2, FiUserX, FiUserCheck, FiUser, FiPower, FiFileText, FiDownload } from 'react-icons/fi'; // Import các icon
 import { toast } from 'react-toastify'; // Import thư viện để hiển thị thông báo
 import { useTheme } from '../../contexts/AdminThemeContext'; // Import context để sử dụng theme sáng/tối
+import { generateCustomerFeedbackPDF } from '../../utils/pdfGenerator';
 
 // Component quản lý khách hàng
 const Customers = () => {
@@ -40,6 +41,20 @@ const Customers = () => {
     // ===== CHỈNH SỬA KHÁCH HÀNG =====
     const [editingCustomer, setEditingCustomer] = useState(null); // Khách hàng đang sửa
     const [isModalOpen, setIsModalOpen] = useState(false); // Trạng thái modal
+
+    // ===== PHẢN HỒI KHÁCH HÀNG =====
+    const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+    const [feedbackData, setFeedbackData] = useState({
+        userID: '',
+        fullname: '',
+        phone: '',
+        email: '',
+        address: '',
+        feedbackDate: new Date(),
+        feedback: '',
+        resolution: '',
+        rating: ''
+    });
 
     // ===== CÁC HÀM TIỆN ÍCH =====
     // Chuyển đổi giới tính sang tiếng Việt
@@ -224,6 +239,38 @@ const Customers = () => {
     const handlePageChange = (page) => {
         setCurrentPage(page);
         window.scrollTo({ top: 0, behavior: 'smooth' }); // Cuộn lên đầu trang
+    };
+
+    // ===== HANDLERS CHO PHẢN HỒI KHÁCH HÀNG =====
+    const handleOpenFeedbackForm = (customer) => {
+        setFeedbackData({
+            userID: customer.userID,
+            fullname: customer.fullname,
+            phone: customer.phone,
+            email: customer.email,
+            address: customer.address || '',
+            feedbackDate: new Date(),
+            feedback: '',
+            resolution: '',
+            rating: ''
+        });
+        setIsFeedbackModalOpen(true);
+    };
+
+    const handleGenerateFeedbackPDF = () => {
+        try {
+            if (!feedbackData.feedback.trim()) {
+                toast.warning('Vui lòng nhập nội dung phản hồi');
+                return;
+            }
+            
+            const fileName = generateCustomerFeedbackPDF(feedbackData);
+            toast.success(`Xuất biểu mẫu phản hồi thành công: ${fileName}`);
+            setIsFeedbackModalOpen(false);
+        } catch (error) {
+            console.error('Lỗi khi xuất PDF:', error);
+            toast.error('Không thể xuất biểu mẫu phản hồi');
+        }
     };
 
     // Modal chỉnh sửa
@@ -652,6 +699,16 @@ const Customers = () => {
                                                     >
                                                         <FiEdit2 className="w-5 h-5" />
                                                     </button>
+                                                    <button
+                                                        onClick={() => handleOpenFeedbackForm(customer)}
+                                                        className={`p-2 rounded-lg transition-colors ${isDarkMode
+                                                                ? 'bg-purple-400/10 hover:bg-purple-400/20 text-purple-400'
+                                                                : 'bg-purple-100 hover:bg-purple-200 text-purple-600'
+                                                            }`}
+                                                        title="Phản hồi khách hàng"
+                                                    >
+                                                        <FiFileText className="w-5 h-5" />
+                                                    </button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -716,6 +773,195 @@ const Customers = () => {
                 </div>
             </div>
             {isModalOpen && editingCustomer && EditModal()}
+
+            {/* ===== MODAL PHẢN HỒI KHÁCH HÀNG ===== */}
+            {isFeedbackModalOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+                    <div className={`relative w-full max-w-3xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl ${isDarkMode ? 'bg-gray-800' : 'bg-white'}`}>
+                        {/* Header */}
+                        <div className={`sticky top-0 z-10 flex items-center justify-between p-6 border-b ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                            <div className="flex items-center gap-3">
+                                <div className="p-3 rounded-xl bg-purple-500/20">
+                                    <FiFileText className="text-2xl text-purple-500" />
+                                </div>
+                                <div>
+                                    <h2 className="text-2xl font-bold">Biểu Mẫu Phản Hồi Khách Hàng</h2>
+                                    <p className={`text-sm ${isDarkMode ? 'text-gray-400' : 'text-gray-600'}`}>
+                                        Ghi nhận phản hồi và đánh giá của khách hàng
+                                    </p>
+                                </div>
+                            </div>
+                            <button
+                                onClick={() => setIsFeedbackModalOpen(false)}
+                                className={`p-2 rounded-lg transition-colors ${isDarkMode ? 'hover:bg-gray-700' : 'hover:bg-gray-100'}`}
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="p-6 space-y-6">
+                            {/* Phần I: Thông tin khách hàng */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                                    <FiUser className="text-purple-500" />
+                                    I. Thông tin khách hàng
+                                </h3>
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Họ và tên
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={feedbackData.fullname}
+                                            readOnly
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-600 border-gray-600 text-gray-300' : 'bg-gray-100 border-gray-300 text-gray-600'} cursor-not-allowed`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Số điện thoại
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={feedbackData.phone}
+                                            readOnly
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-600 border-gray-600 text-gray-300' : 'bg-gray-100 border-gray-300 text-gray-600'} cursor-not-allowed`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Email
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={feedbackData.email}
+                                            readOnly
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-600 border-gray-600 text-gray-300' : 'bg-gray-100 border-gray-300 text-gray-600'} cursor-not-allowed`}
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Ngày phản hồi
+                                        </label>
+                                        <input
+                                            type="date"
+                                            value={feedbackData.feedbackDate.toISOString().split('T')[0]}
+                                            onChange={(e) => setFeedbackData({ ...feedbackData, feedbackDate: new Date(e.target.value) })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                        />
+                                    </div>
+                                    <div className="col-span-2">
+                                        <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                            Địa chỉ
+                                        </label>
+                                        <input
+                                            type="text"
+                                            value={feedbackData.address}
+                                            onChange={(e) => setFeedbackData({ ...feedbackData, address: e.target.value })}
+                                            className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'}`}
+                                            placeholder="Nhập địa chỉ khách hàng"
+                                        />
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Phần II: Nội dung phản hồi */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <h3 className="text-lg font-semibold mb-4">II. Nội dung phản hồi của khách hàng</h3>
+                                <div>
+                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Nội dung phản hồi *
+                                    </label>
+                                    <textarea
+                                        value={feedbackData.feedback}
+                                        onChange={(e) => setFeedbackData({ ...feedbackData, feedback: e.target.value })}
+                                        rows={5}
+                                        className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} resize-none`}
+                                        placeholder="Nhập nội dung phản hồi của khách hàng..."
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Phần III: Phương án xử lý */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <h3 className="text-lg font-semibold mb-4">III. Phương án xử lý của nhân viên/shop</h3>
+                                <div>
+                                    <label className={`block text-sm font-medium mb-2 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Phương án xử lý
+                                    </label>
+                                    <textarea
+                                        value={feedbackData.resolution}
+                                        onChange={(e) => setFeedbackData({ ...feedbackData, resolution: e.target.value })}
+                                        rows={5}
+                                        className={`w-full p-3 rounded-lg border ${isDarkMode ? 'bg-gray-800 border-gray-600 text-white' : 'bg-white border-gray-300'} resize-none`}
+                                        placeholder="Nhập phương án xử lý và giải quyết vấn đề..."
+                                    />
+                                </div>
+                            </div>
+
+                            {/* Phần IV: Đánh giá */}
+                            <div className={`p-4 rounded-xl ${isDarkMode ? 'bg-gray-700/50' : 'bg-gray-50'}`}>
+                                <h3 className="text-lg font-semibold mb-4">IV. Đánh giá sau xử lý của khách hàng</h3>
+                                <div>
+                                    <label className={`block text-sm font-medium mb-3 ${isDarkMode ? 'text-gray-300' : 'text-gray-700'}`}>
+                                        Mức độ hài lòng
+                                    </label>
+                                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                                        {['Rất hài lòng', 'Hài lòng', 'Bình thường', 'Không hài lòng'].map((rating) => (
+                                            <button
+                                                key={rating}
+                                                onClick={() => setFeedbackData({ ...feedbackData, rating })}
+                                                className={`p-3 rounded-lg border-2 transition-all ${
+                                                    feedbackData.rating === rating
+                                                        ? 'border-purple-500 bg-purple-500/20 text-purple-500'
+                                                        : isDarkMode
+                                                            ? 'border-gray-600 hover:border-gray-500 bg-gray-800'
+                                                            : 'border-gray-300 hover:border-gray-400 bg-white'
+                                                }`}
+                                            >
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <div className={`w-5 h-5 rounded border-2 flex items-center justify-center ${
+                                                        feedbackData.rating === rating
+                                                            ? 'border-purple-500 bg-purple-500'
+                                                            : 'border-gray-400'
+                                                    }`}>
+                                                        {feedbackData.rating === rating && (
+                                                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                            </svg>
+                                                        )}
+                                                    </div>
+                                                    <span className="text-sm font-medium">{rating}</span>
+                                                </div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className={`sticky bottom-0 flex justify-end gap-3 p-6 border-t ${isDarkMode ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+                            <button
+                                onClick={() => setIsFeedbackModalOpen(false)}
+                                className={`px-6 py-3 rounded-lg transition-colors ${isDarkMode ? 'bg-gray-700 hover:bg-gray-600' : 'bg-gray-200 hover:bg-gray-300'}`}
+                            >
+                                Hủy
+                            </button>
+                            <button
+                                onClick={handleGenerateFeedbackPDF}
+                                className="flex items-center gap-2 px-6 py-3 bg-purple-500 hover:bg-purple-600 text-white rounded-lg transition-colors"
+                            >
+                                <FiDownload /> Xuất PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
