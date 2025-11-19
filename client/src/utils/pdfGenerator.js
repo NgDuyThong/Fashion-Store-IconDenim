@@ -188,16 +188,21 @@ export const generateInventoryImportPDF = (data) => {
         total: formatCurrency(item.total)
     }));
     
-    // Thêm dòng tổng cộng
+    // Tính tổng số lượng và tổng tiền
+    const totalQtyDoc = data.items.reduce((sum, item) => sum + (item.quantity || 0), 0);
+    const totalQtyActual = data.items.reduce((sum, item) => sum + (item.actualQuantity || item.quantity || 0), 0);
+    const totalAmount = data.items.reduce((sum, item) => sum + (item.total || 0), 0);
+    
+    // Thêm dòng CỘNG - tổng cộng
     tableData.push({
         stt: '',
-        description: 'Cong',
-        code: 'x',
-        unit: 'x',
-        qty_doc: 'x',
-        qty_actual: 'x',
-        price: 'x',
-        total: ''
+        description: 'CONG',
+        code: '',
+        unit: '',
+        qty_doc: totalQtyDoc,
+        qty_actual: totalQtyActual,
+        price: '',
+        total: formatCurrency(totalAmount)
     });
     
     autoTable(doc, {
@@ -207,31 +212,45 @@ export const generateInventoryImportPDF = (data) => {
         theme: 'grid',
         styles: {
             font: 'helvetica',
-            fontSize: 9,
-            cellPadding: 2,
+            fontSize: 8,
+            cellPadding: 3,
+            halign: 'center',
+            valign: 'middle',
+            lineWidth: 0.3,
+            lineColor: [0, 0, 0]
+        },
+        headStyles: {
+            fillColor: [240, 240, 240],
+            textColor: [0, 0, 0],
+            fontStyle: 'bold',
+            fontSize: 8,
+            lineWidth: 0.5,
+            lineColor: [0, 0, 0],
             halign: 'center',
             valign: 'middle'
         },
-        headStyles: {
-            fillColor: [255, 255, 255],
-            textColor: [0, 0, 0],
-            fontStyle: 'bold',
-            lineWidth: 0.5,
-            lineColor: [0, 0, 0]
-        },
         bodyStyles: {
-            lineWidth: 0.5,
+            lineWidth: 0.3,
             lineColor: [0, 0, 0]
         },
         columnStyles: {
-            0: { cellWidth: 15 }, // STT
+            0: { cellWidth: 12, halign: 'center' }, // STT
             1: { cellWidth: 50, halign: 'left' }, // Tên
-            2: { cellWidth: 20 }, // Mã số
-            3: { cellWidth: 15 }, // ĐVT
-            4: { cellWidth: 20 }, // Số lượng doc
-            5: { cellWidth: 20 }, // Thực nhập
-            6: { cellWidth: 25 }, // Đơn giá
-            7: { cellWidth: 25 } // Thành tiền
+            2: { cellWidth: 18, halign: 'center' }, // Mã số
+            3: { cellWidth: 12, halign: 'center' }, // ĐVT
+            4: { cellWidth: 18, halign: 'center' }, // Số lượng theo chứng từ
+            5: { cellWidth: 18, halign: 'center' }, // Thực nhập
+            6: { cellWidth: 28, halign: 'right' }, // Đơn giá
+            7: { cellWidth: 30, halign: 'right' } // Thành tiền
+        },
+        didParseCell: function(data) {
+            // Dòng CỘNG (dòng cuối cùng)
+            if (data.row.index === tableData.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [220, 220, 220];
+                data.cell.styles.fontSize = 9;
+                data.cell.styles.lineWidth = 0.5;
+            }
         }
     });
     
@@ -294,29 +313,34 @@ export const generateSalesInvoicePDF = (orderData) => {
     
     // Bảng sản phẩm
     const tableColumns = [
-        { header: 'TT', dataKey: 'stt' },
-        { header: 'TEN HANG', dataKey: 'productName' },
-        { header: 'SO LUONG', dataKey: 'quantity' },
-        { header: 'DON GIA', dataKey: 'price' },
-        { header: 'THANH TIEN', dataKey: 'total' }
+        { header: 'STT', dataKey: 'stt' },
+        { header: 'Ten hang hoa, quy cach, pham chat', dataKey: 'productName' },
+        { header: 'DVT', dataKey: 'unit' },
+        { header: 'So luong', dataKey: 'quantity' },
+        { header: 'Don gia', dataKey: 'price' },
+        { header: 'Thanh tien', dataKey: 'total' }
     ];
     
     const tableData = orderData.items.map((item, index) => ({
         stt: index + 1,
-        productName: `${removeVietnameseTones(item.productName)}\n${item.color ? `Mau: ${removeVietnameseTones(item.color)}` : ''} ${item.size ? `Size: ${item.size}` : ''}`,
+        productName: `${removeVietnameseTones(item.productName)}${item.color ? `\nMau: ${removeVietnameseTones(item.color)}` : ''}${item.size ? ` - Size: ${item.size}` : ''}`,
+        unit: 'Cai',
         quantity: item.quantity,
         price: formatCurrency(item.price),
         total: formatCurrency(item.price * item.quantity)
     }));
     
-    // Dòng tổng cộng
-    const totalAmount = orderData.paymentPrice || orderData.totalPrice || orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    // Tính tổng tiền hàng (chưa giảm giá)
+    const subtotalAmount = orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+    
+    // Dòng CỘNG - tổng tiền hàng
     tableData.push({
         stt: '',
-        productName: 'TONG CONG',
-        quantity: '',
+        productName: 'CONG',
+        unit: '',
+        quantity: orderData.items.reduce((sum, item) => sum + item.quantity, 0),
         price: '',
-        total: formatCurrency(totalAmount)
+        total: formatCurrency(subtotalAmount)
     });
     
     // Nếu có giảm giá, thêm dòng giảm giá
@@ -324,22 +348,23 @@ export const generateSalesInvoicePDF = (orderData) => {
         tableData.push({
             stt: '',
             productName: 'Giam gia / Khuyen mai',
+            unit: '',
             quantity: '',
             price: '',
             total: `-${formatCurrency(orderData.discount)}`
         });
     }
     
-    // Dòng tổng thanh toán (nếu có giảm giá)
-    if (orderData.finalPrice && orderData.finalPrice !== totalAmount) {
-        tableData.push({
-            stt: '',
-            productName: 'TONG THANH TOAN',
-            quantity: '',
-            price: '',
-            total: formatCurrency(orderData.finalPrice)
-        });
-    }
+    // Dòng TỔNG CỘNG THANH TOÁN
+    const finalAmount = orderData.finalPrice || orderData.paymentPrice || subtotalAmount;
+    tableData.push({
+        stt: '',
+        productName: 'TONG CONG THANH TOAN',
+        unit: '',
+        quantity: '',
+        price: '',
+        total: formatCurrency(finalAmount)
+    });
     
     autoTable(doc, {
         startY: yPos,
@@ -348,36 +373,58 @@ export const generateSalesInvoicePDF = (orderData) => {
         theme: 'grid',
         styles: {
             font: 'helvetica',
-            fontSize: 10,
-            cellPadding: 3,
+            fontSize: 9,
+            cellPadding: 4,
+            halign: 'center',
+            valign: 'middle',
+            lineWidth: 0.3,
+            lineColor: [0, 0, 0]
+        },
+        headStyles: {
+            fillColor: [240, 240, 240],
+            textColor: [0, 0, 0],
+            fontStyle: 'bold',
+            fontSize: 9,
+            lineWidth: 0.5,
+            lineColor: [0, 0, 0],
             halign: 'center',
             valign: 'middle'
         },
-        headStyles: {
-            fillColor: [255, 255, 255],
-            textColor: [0, 0, 0],
-            fontStyle: 'bold',
-            lineWidth: 0.5,
-            lineColor: [0, 0, 0]
-        },
         bodyStyles: {
-            lineWidth: 0.5,
+            lineWidth: 0.3,
             lineColor: [0, 0, 0]
         },
         columnStyles: {
-            0: { cellWidth: 15 }, // TT
-            1: { cellWidth: 80, halign: 'left' }, // Tên hàng
-            2: { cellWidth: 25 }, // Số lượng
-            3: { cellWidth: 30 }, // Đơn giá
-            4: { cellWidth: 35 } // Thành tiền
+            0: { cellWidth: 12, halign: 'center' }, // STT
+            1: { cellWidth: 70, halign: 'left' }, // Tên hàng
+            2: { cellWidth: 15, halign: 'center' }, // ĐVT
+            3: { cellWidth: 20, halign: 'center' }, // Số lượng
+            4: { cellWidth: 33, halign: 'right' }, // Đơn giá
+            5: { cellWidth: 35, halign: 'right' } // Thành tiền
         },
         didParseCell: function(data) {
-            // In đậm các dòng tổng
             const rowIndex = data.row.index;
-            const isLastRows = rowIndex >= tableData.length - (orderData.discount > 0 ? 3 : 1);
-            if (isLastRows) {
+            const totalProductRows = orderData.items.length;
+            
+            // Dòng CỘNG
+            if (rowIndex === totalProductRows) {
                 data.cell.styles.fontStyle = 'bold';
-                data.cell.styles.fillColor = [245, 245, 245];
+                data.cell.styles.fillColor = [250, 250, 250];
+                data.cell.styles.fontSize = 10;
+            }
+            
+            // Dòng giảm giá (nếu có)
+            if (orderData.discount > 0 && rowIndex === totalProductRows + 1) {
+                data.cell.styles.fontStyle = 'italic';
+                data.cell.styles.fillColor = [255, 255, 255];
+            }
+            
+            // Dòng TỔNG CỘNG THANH TOÁN (luôn là dòng cuối)
+            if (rowIndex === tableData.length - 1) {
+                data.cell.styles.fontStyle = 'bold';
+                data.cell.styles.fillColor = [220, 220, 220];
+                data.cell.styles.fontSize = 11;
+                data.cell.styles.lineWidth = 0.7;
             }
         }
     });
@@ -470,55 +517,58 @@ export const generateDailyInvoicePDF = (dailyData) => {
         
         // Bảng sản phẩm cho đơn hàng này
         const tableColumns = [
-            { header: 'TT', dataKey: 'stt' },
-            { header: 'TEN HANG', dataKey: 'productName' },
+            { header: 'STT', dataKey: 'stt' },
+            { header: 'Ten hang hoa', dataKey: 'productName' },
+            { header: 'DVT', dataKey: 'unit' },
             { header: 'SL', dataKey: 'quantity' },
-            { header: 'DON GIA', dataKey: 'price' },
-            { header: 'THANH TIEN', dataKey: 'total' }
+            { header: 'Don gia', dataKey: 'price' },
+            { header: 'Thanh tien', dataKey: 'total' }
         ];
         
         const tableData = orderData.items.map((item, index) => ({
             stt: index + 1,
             productName: `${removeVietnameseTones(item.productName)}${item.color ? ` - ${removeVietnameseTones(item.color)}` : ''}${item.size ? ` (${item.size})` : ''}`,
+            unit: 'Cai',
             quantity: item.quantity,
             price: formatCurrency(item.price),
             total: formatCurrency(item.price * item.quantity)
         }));
         
-        // Tính tổng đơn hàng
-        const orderTotal = orderData.totalPrice || orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+        // Tính tổng tiền hàng (chưa giảm giá)
+        const orderSubtotal = orderData.items.reduce((sum, item) => sum + (item.price * item.quantity), 0);
         
-        // Dòng tổng đơn
+        // Dòng CỘNG
         tableData.push({
             stt: '',
-            productName: 'Tong don',
-            quantity: '',
+            productName: 'CONG',
+            unit: '',
+            quantity: orderData.items.reduce((sum, item) => sum + item.quantity, 0),
             price: '',
-            total: formatCurrency(orderTotal)
+            total: formatCurrency(orderSubtotal)
         });
         
         // Nếu có giảm giá, thêm dòng giảm giá
         if (orderData.discount && orderData.discount > 0) {
             tableData.push({
                 stt: '',
-                productName: 'Giam gia',
+                productName: 'Giam gia / Khuyen mai',
+                unit: '',
                 quantity: '',
                 price: '',
                 total: `-${formatCurrency(orderData.discount)}`
             });
         }
         
-        // Dòng tổng thanh toán (nếu có giảm giá)
-        const finalOrderTotal = orderData.finalPrice || orderTotal;
-        if (orderData.finalPrice && orderData.finalPrice !== orderTotal) {
-            tableData.push({
-                stt: '',
-                productName: 'Thanh toan',
-                quantity: '',
-                price: '',
-                total: formatCurrency(finalOrderTotal)
-            });
-        }
+        // Dòng TỔNG CỘNG
+        const finalOrderTotal = orderData.finalPrice || orderData.totalPrice || orderSubtotal;
+        tableData.push({
+            stt: '',
+            productName: 'TONG CONG',
+            unit: '',
+            quantity: '',
+            price: '',
+            total: formatCurrency(finalOrderTotal)
+        });
         
         // Cộng vào tổng lớn (dùng giá sau giảm)
         grandTotal += finalOrderTotal;
@@ -531,36 +581,56 @@ export const generateDailyInvoicePDF = (dailyData) => {
             styles: {
                 font: 'helvetica',
                 fontSize: 8,
-                cellPadding: 2,
+                cellPadding: 3,
                 halign: 'center',
-                valign: 'middle'
-            },
-            headStyles: {
-                fillColor: [240, 240, 240],
-                textColor: [0, 0, 0],
-                fontStyle: 'bold',
-                lineWidth: 0.3,
+                valign: 'middle',
+                lineWidth: 0.2,
                 lineColor: [0, 0, 0]
             },
+            headStyles: {
+                fillColor: [235, 235, 235],
+                textColor: [0, 0, 0],
+                fontStyle: 'bold',
+                fontSize: 8,
+                lineWidth: 0.4,
+                lineColor: [0, 0, 0],
+                halign: 'center'
+            },
             bodyStyles: {
-                lineWidth: 0.3,
+                lineWidth: 0.2,
                 lineColor: [0, 0, 0]
             },
             columnStyles: {
-                0: { cellWidth: 12 },
-                1: { cellWidth: 85, halign: 'left' },
-                2: { cellWidth: 15 },
-                3: { cellWidth: 35 },
-                4: { cellWidth: 38 }
+                0: { cellWidth: 10, halign: 'center' }, // STT
+                1: { cellWidth: 70, halign: 'left' }, // Tên hàng
+                2: { cellWidth: 12, halign: 'center' }, // ĐVT
+                3: { cellWidth: 15, halign: 'center' }, // SL
+                4: { cellWidth: 35, halign: 'right' }, // Đơn giá
+                5: { cellWidth: 38, halign: 'right' } // Thành tiền
             },
             didParseCell: function(data) {
-                // In đậm các dòng tổng (3 dòng cuối nếu có giảm giá, 1 dòng nếu không)
                 const rowIndex = data.row.index;
-                const totalRowsCount = orderData.discount > 0 ? 3 : 1;
-                const isLastRows = rowIndex >= tableData.length - totalRowsCount;
-                if (isLastRows) {
+                const totalProductRows = orderData.items.length;
+                
+                // Dòng CỘNG
+                if (rowIndex === totalProductRows) {
                     data.cell.styles.fontStyle = 'bold';
-                    data.cell.styles.fillColor = [245, 245, 245];
+                    data.cell.styles.fillColor = [250, 250, 250];
+                    data.cell.styles.fontSize = 9;
+                }
+                
+                // Dòng giảm giá (nếu có)
+                if (orderData.discount > 0 && rowIndex === totalProductRows + 1) {
+                    data.cell.styles.fontStyle = 'italic';
+                    data.cell.styles.fillColor = [255, 255, 255];
+                }
+                
+                // Dòng TỔNG CỘNG (luôn là dòng cuối)
+                if (rowIndex === tableData.length - 1) {
+                    data.cell.styles.fontStyle = 'bold';
+                    data.cell.styles.fillColor = [220, 220, 220];
+                    data.cell.styles.fontSize = 9;
+                    data.cell.styles.lineWidth = 0.5;
                 }
             }
         });
