@@ -215,11 +215,11 @@ def run_fashion_store_analysis():
         coium_results = best_result['results'].get('CoIUM', {})
         cohui_results = best_result['results'].get('CoHUI-Miner', {})
         
-        # Lấy số patterns từ CoHUI-Miner (thuật toán chính)
+        # Lấy số patterns
         patterns_count = cohui_results.get('count', 0)
         coium_runtime = coium_results.get('runtime', 0)
         
-        # Tính average correlation từ CoHUI-Miner
+        # Tính average correlation 
         correlations = cohui_results.get('correlations', [])
         avg_correlation = round(np.mean(correlations), 3) if correlations else 0.0
         
