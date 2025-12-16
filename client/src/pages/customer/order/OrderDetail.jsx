@@ -66,6 +66,8 @@ const OrderDetail = () => {
       setOrderDetails(response.data.orderDetails.map(detail => ({
         orderDetailID: detail.orderDetailID,
         quantity: detail.quantity,
+        isCombo: detail.isCombo || false,
+        comboDiscount: detail.comboDiscount || 0,
         productInfo: {
           productID: detail.product.productID,
           name: detail.product.name,
@@ -449,11 +451,30 @@ const OrderDetail = () => {
                           <p className="text-sm text-gray-500 mt-1">
                             {item.productInfo?.colorName} - {item.productInfo?.size}
                           </p>
+                          {/* Hiển thị badge combo nếu sản phẩm thuộc combo */}
+                          {item.isCombo && (
+                            <span className="inline-block mt-1 px-2 py-1 bg-purple-100 text-purple-700 text-xs font-semibold rounded">
+                              🎉 Combo -{item.comboDiscount}%
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
                     <td className="text-center">{item.quantity}</td>
-                    <td className="text-right">{formatNumber(item.productInfo?.price)}đ</td>
+                    <td className="text-right">
+                      {item.isCombo && item.comboDiscount > 0 ? (
+                        <div>
+                          <div className="text-gray-400 line-through text-sm">
+                            {formatNumber(item.productInfo?.price)}đ
+                          </div>
+                          <div className="text-purple-600 font-semibold">
+                            {formatNumber(Math.round(item.productInfo?.price * (1 - item.comboDiscount / 100)))}đ
+                          </div>
+                        </div>
+                      ) : (
+                        <span>{formatNumber(item.productInfo?.price)}đ</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

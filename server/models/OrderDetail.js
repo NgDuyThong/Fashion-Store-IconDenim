@@ -22,6 +22,15 @@ const orderDetailSchema = new Schema({
         type: Number,
         required: true,
         min: 1
+    },
+    // Thông tin combo (tương tự Cart model)
+    isCombo: {
+        type: Boolean,
+        default: false
+    },
+    comboDiscount: {
+        type: Number, // % giảm giá cho combo
+        default: 0
     }
 }, {
     timestamps: true // Tự động thêm createdAt và updatedAt

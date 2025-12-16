@@ -75,7 +75,7 @@ const ProductDetail = () => {
   const [showComboModal, setShowComboModal] = useState(false);
   const [productFull, setProductFull] = useState(null); // Product hiện tại với colors đầy đủ
   const [comboProductFull, setComboProductFull] = useState(null);
-  const [comboSelectedColor, setComboSelectedColor] = useState(null); // ✅ FIX: null thay vì ''
+  const [comboSelectedColor, setComboSelectedColor] = useState(null); 
   const [comboSelectedSize, setComboSelectedSize] = useState('');
   const [addingCombo, setAddingCombo] = useState(false);
 
@@ -834,9 +834,20 @@ const ProductDetail = () => {
         window.dispatchEvent(new Event('cartChange'));
         setShowComboModal(false);
         
-        // Reset selections
+        // Reset state combo
+        setProductFull(null);
+        setComboProductFull(null);
         setComboSelectedColor(null);
         setComboSelectedSize('');
+        
+        // Tự động chọn lại màu đầu tiên của sản phẩm chính
+        if (product?.availableColors && product.availableColors.length > 0) {
+          setSelectedColor(product.availableColors[0]);
+        }
+        // Tự động chọn lại size đầu tiên
+        if (product?.availableSizes && product.availableSizes.length > 0) {
+          setSelectedSize(product.availableSizes[0]);
+        }
       } else {
         toast.error(response.data.message || 'Có lỗi khi thêm combo');
       }
@@ -2351,7 +2362,23 @@ const ProductDetail = () => {
                 Chọn Màu & Size Cho Combo
               </h2>
               <button
-                onClick={() => setShowComboModal(false)}
+                onClick={() => {
+                  setShowComboModal(false);
+                  // Reset state combo khi đóng modal
+                  setProductFull(null);
+                  setComboProductFull(null);
+                  setComboSelectedColor(null);
+                  setComboSelectedSize('');
+                  
+                  // Tự động chọn lại màu đầu tiên của sản phẩm chính
+                  if (product?.availableColors && product.availableColors.length > 0) {
+                    setSelectedColor(product.availableColors[0]);
+                  }
+                  // Tự động chọn lại size đầu tiên
+                  if (product?.availableSizes && product.availableSizes.length > 0) {
+                    setSelectedSize(product.availableSizes[0]);
+                  }
+                }}
                 className="p-2 hover:bg-gray-200 rounded-full transition"
               >
                 <FaTimes className="text-xl" />

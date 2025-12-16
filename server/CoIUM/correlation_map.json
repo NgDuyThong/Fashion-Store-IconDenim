@@ -350,6 +350,13 @@
       "categoryID": 10,
       "targetID": 1,
       "price": 200000
+    },
+    {
+      "productID": 2,
+      "name": "Áo thun Regular CASUAL Supima",
+      "categoryID": 6,
+      "targetID": 1,
+      "price": 300000
     }
   ],
   "13": [],
@@ -743,6 +750,13 @@
       "price": 550000
     },
     {
+      "productID": 37,
+      "name": "Quần Cargo lửng nam",
+      "categoryID": 10,
+      "targetID": 1,
+      "price": 200000
+    },
+    {
       "productID": 1,
       "name": "Áo thun Supima FIRE STARTS",
       "categoryID": 6,
@@ -755,13 +769,6 @@
       "categoryID": 6,
       "targetID": 1,
       "price": 300000
-    },
-    {
-      "productID": 37,
-      "name": "Quần Cargo lửng nam",
-      "categoryID": 10,
-      "targetID": 1,
-      "price": 200000
     }
   ],
   "31": [
@@ -1025,6 +1032,13 @@
       "price": 1603000
     },
     {
+      "productID": 51,
+      "name": "Áo peplum phối ren",
+      "categoryID": 14,
+      "targetID": 2,
+      "price": 745000
+    },
+    {
       "productID": 42,
       "name": "Áo Polo cổ viền",
       "categoryID": 6,
@@ -1044,13 +1058,6 @@
       "categoryID": 11,
       "targetID": 2,
       "price": 250000
-    },
-    {
-      "productID": 51,
-      "name": "Áo peplum phối ren",
-      "categoryID": 14,
-      "targetID": 2,
-      "price": 745000
     },
     {
       "productID": 103,
@@ -2399,6 +2406,13 @@
       "categoryID": 18,
       "targetID": 2,
       "price": 1393000
+    },
+    {
+      "productID": 46,
+      "name": "Áo sơ mi Croptop Office",
+      "categoryID": 2,
+      "targetID": 2,
+      "price": 833000
     }
   ],
   "72": [
@@ -2848,13 +2862,6 @@
       "categoryID": 7,
       "targetID": 2,
       "price": 693000
-    },
-    {
-      "productID": 40,
-      "name": "Áo sơ mi họa tiết Croptop",
-      "categoryID": 11,
-      "targetID": 2,
-      "price": 693000
     }
   ],
   "88": [
@@ -3066,13 +3073,6 @@
       "categoryID": 16,
       "targetID": 2,
       "price": 1603000
-    },
-    {
-      "productID": 111,
-      "name": "Áo dài Đan Yên",
-      "categoryID": 12,
-      "targetID": 2,
-      "price": 1200000
     }
   ],
   "92": [
@@ -3962,18 +3962,18 @@
   ],
   "111": [
     {
-      "productID": 59,
-      "name": "Quần lót thun trơn",
-      "categoryID": 21,
-      "targetID": 2,
-      "price": 50000
-    },
-    {
       "productID": 112,
       "name": "Quần áo dài Hoàng Yên",
       "categoryID": 12,
       "targetID": 2,
       "price": 623000
+    },
+    {
+      "productID": 59,
+      "name": "Quần lót thun trơn",
+      "categoryID": 21,
+      "targetID": 2,
+      "price": 50000
     },
     {
       "productID": 42,

@@ -1,26 +1,26 @@
 {
-  "runtime": 0.76,
+  "runtime": 0.55,
   "memory": 50,
   "patterns_count": 101,
   "avg_correlation": 1.0,
-  "avg_utility": 720376307.0,
+  "avg_utility": 720460337.0,
   "minutil": 0.001,
   "mincor": 0.5,
-  "timestamp": 1764475016,
-  "total_transactions": 25764,
+  "timestamp": 1765874810,
+  "total_transactions": 25771,
   "total_items": 106,
   "algorithms": {
     "CoIUM": {
       "patterns": 101,
-      "runtime": 0.760134220123291
+      "runtime": 0.5539655685424805
     },
     "CoUPM": {
       "patterns": 101,
-      "runtime": 0.763883113861084
+      "runtime": 0.5049433708190918
     },
     "CoHUI-Miner": {
       "patterns": 101,
-      "runtime": 2.8885653018951416
+      "runtime": 2.136150598526001
     }
   }
 }

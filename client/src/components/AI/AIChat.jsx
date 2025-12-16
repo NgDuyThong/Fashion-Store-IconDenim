@@ -121,7 +121,8 @@ const AIChat = () => {
   // Hàm format tin nhắn để hiển thị ảnh
   const formatMessage = (content) => {
     // Tìm các ảnh sản phẩm và link trong nội dung
-    const productRegex = /!\[(.*?)\]\((.*?)\)[\n\r]*(.*?)[\n\r]*http:\/\/localhost:5173\/product\/(\d+)/g;
+    // Regex cải tiến để xử lý nhiều whitespace và xuống dòng
+    const productRegex = /!\[(.*?)\]\((.*?)\)\s*[\n\r]+\s*(.*?)[\n\r]+\s*http:\/\/localhost:5173\/product\/(\d+)/g;
     let formattedContent = content;
     const images = [];
 
@@ -138,13 +139,16 @@ const AIChat = () => {
       formattedContent = formattedContent.replace(fullMatch, '');
     }
 
+    // Loại bỏ các dòng trống thừa
+    formattedContent = formattedContent.replace(/\n{3,}/g, '\n\n');
+
     // Format text content với xuống dòng và emoji
     const formattedText = formattedContent
       .split('\n')
       .map((line, index) => (
         <React.Fragment key={index}>
           {line.trim() && (
-            <p className={`mb-2 ${line.startsWith('•') ? 'ml-4' : ''}`}>
+            <p className={`mb-2 ${line.startsWith('•') || line.trim().startsWith('*') ? 'ml-4' : ''}`}>
               {line}
             </p>
           )}

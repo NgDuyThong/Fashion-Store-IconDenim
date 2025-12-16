@@ -23,6 +23,19 @@ const cartSchema = new Schema({
         required: true,
         min: 1,
         default: 1
+    },
+    // Thông tin combo
+    isCombo: {
+        type: Boolean,
+        default: false
+    },
+    comboID: {
+        type: String, // Dùng để nhận diện các sản phẩm thuộc cùng 1 combo
+        default: null
+    },
+    comboDiscount: {
+        type: Number, // % giảm giá cho combo (ví dụ: 5 = giảm 5%)
+        default: 0
     }
 }, {
     timestamps: true // Tự động thêm createdAt và updatedAt

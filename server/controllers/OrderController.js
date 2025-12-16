@@ -107,6 +107,8 @@ class OrderController {
                         SKU: detail.SKU,
                         size: stockItem.size,
                         stock: stockItem.stock,
+                        isCombo: detail.isCombo || false,
+                        comboDiscount: detail.comboDiscount || 0,
                         product: productInfo
                     };
                 })
@@ -351,6 +353,25 @@ class OrderController {
                     });
                 }
 
+                // Lấy thông tin combo từ Cart (nếu có)
+                const cartItem = await Cart.findOne({ 
+                    userID, 
+                    SKU: item.SKU 
+                });
+
+                let isCombo = false;
+                let comboDiscount = 0;
+
+                if (cartItem && cartItem.isCombo) {
+                    isCombo = true;
+                    comboDiscount = cartItem.comboDiscount || 0;
+                    console.log('✅ Found combo item in cart:', {
+                        SKU: item.SKU,
+                        isCombo,
+                        comboDiscount: `${comboDiscount}%`
+                    });
+                }
+
                 // Lấy thông tin sản phẩm và category
                 const product = await Product.findOne({ productID: Number(productID) });
 
@@ -373,10 +394,12 @@ class OrderController {
 
                 // Bước 3: Kiểm tra khuyến mãi với category name
                 console.log('Bắt đầu kiểm tra khuyến mãi cho SKU:', item.SKU);
+                
+                // Lấy promotion cho tất cả sản phẩm (kể cả combo)
                 const promotion = await Promotion.findOne({
                     $or: [
                         { products: product._id },
-                        { categories: category.name }, // Sử dụng category.name
+                        { categories: category.name },
                         { SKUs: item.SKU }
                     ],
                     startDate: { $lte: new Date() },
@@ -389,6 +412,8 @@ class OrderController {
                     productID: Number(productID),
                     categoryID: product.categoryID,
                     categoryName: category.name,
+                    isCombo,
+                    comboDiscount,
                     foundPromotion: promotion ? {
                         _id: promotion._id,
                         name: promotion.name,
@@ -398,33 +423,69 @@ class OrderController {
                         products: promotion.products,
                         categories: promotion.categories,
                         SKUs: promotion.SKUs
-                    } : 'Không tìm thấy khuyến mãi'
+                    } : (isCombo ? 'Sản phẩm combo nhưng không có promotion' : 'Không tìm thấy khuyến mãi')
                 });
 
-                // Tính giá sau khuyến mãi
+                // Tính giá sau khuyến mãi hoặc combo discount
                 const basePrice = parseInt(product.price.replace(/\./g, '')); // Xóa dấu chấm trước khi parse
                 let finalPrice = basePrice;
+                let appliedDiscount = null;
 
                 console.log('Thông tin giá gốc:', {
                     SKU: item.SKU,
                     productName: product.name,
-                    basePrice: basePrice, // 623000
-                    originalPrice: product.price // '623.000' - giá gốc từ DB
+                    basePrice: basePrice,
+                    originalPrice: product.price,
+                    isCombo,
+                    comboDiscount
                 });
 
+                // Bước 1: Áp dụng promotion/flashsale trước (nếu có)
+                let priceAfterPromotion = basePrice;
                 if (promotion) {
-                    // Tính toán giá sau khuyến mãi
-                    finalPrice = Math.round(basePrice * (1 - promotion.discountPercent / 100));
-                    console.log('Chi tiết tính giá khuyến mãi:', {
+                    priceAfterPromotion = Math.round(basePrice * (1 - promotion.discountPercent / 100));
+                    finalPrice = priceAfterPromotion;
+                    appliedDiscount = {
+                        type: 'promotion',
+                        discountPercent: promotion.discountPercent,
+                        endDate: promotion.endDate
+                    };
+                    console.log('✅ Áp dụng promotion:', {
                         SKU: item.SKU,
-                        basePrice: basePrice, // 623000
-                        discountPercent: promotion.discountPercent, // 30
-                        calculation: `${basePrice} * (1 - ${promotion.discountPercent}/100)`,
-                        finalPrice: finalPrice, // 436100
-                        totalDiscount: basePrice - finalPrice // 186900
+                        basePrice: basePrice,
+                        promotionPercent: promotion.discountPercent,
+                        priceAfterPromotion: priceAfterPromotion
                     });
-                } else {
-                    console.log('Không có khuyến mãi áp dụng, giữ nguyên giá gốc');
+                }
+
+                // Bước 2: Áp dụng combo discount lên giá đã có promotion (nếu có)
+                if (isCombo && comboDiscount > 0) {
+                    // Áp dụng combo discount lên giá đã có promotion
+                    finalPrice = Math.round(priceAfterPromotion * (1 - comboDiscount / 100));
+                    
+                    // Cập nhật appliedDiscount
+                    if (appliedDiscount) {
+                        // Có cả promotion và combo
+                        appliedDiscount.comboDiscount = comboDiscount;
+                        appliedDiscount.type = 'both'; // promotion + combo
+                    } else {
+                        // Chỉ có combo
+                        appliedDiscount = {
+                            type: 'combo',
+                            discountPercent: comboDiscount
+                        };
+                    }
+                    
+                    console.log('✅ Áp dụng combo discount lên giá đã giảm:', {
+                        SKU: item.SKU,
+                        priceAfterPromotion: priceAfterPromotion,
+                        comboDiscount: comboDiscount,
+                        finalPrice: finalPrice,
+                        calculation: `${priceAfterPromotion} * (1 - ${comboDiscount}/100)`,
+                        totalDiscount: basePrice - finalPrice
+                    });
+                } else if (!promotion) {
+                    console.log('Không có khuyến mãi và combo, giữ nguyên giá gốc');
                 }
 
                 const itemTotal = finalPrice * item.quantity;
@@ -441,9 +502,11 @@ class OrderController {
                     ...item,
                     price: finalPrice,
                     originalPrice: basePrice,
-                    promotion: promotion ? {
-                        discountPercent: promotion.discountPercent,
-                        endDate: promotion.endDate
+                    isCombo: isCombo,
+                    comboDiscount: comboDiscount,
+                    promotion: appliedDiscount?.type === 'promotion' ? {
+                        discountPercent: appliedDiscount.discountPercent,
+                        endDate: appliedDiscount.endDate
                     } : null
                 });
             }
@@ -531,6 +594,8 @@ class OrderController {
                     SKU: item.SKU,
                     quantity: item.quantity,
                     price: item.price,
+                    isCombo: item.isCombo || false,
+                    comboDiscount: item.comboDiscount || 0,
                     createdAt: new Date(),
                     updatedAt: new Date()
                 }));

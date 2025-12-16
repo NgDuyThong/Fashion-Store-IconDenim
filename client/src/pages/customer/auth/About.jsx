@@ -106,7 +106,7 @@ const teamMembers = [
     skills: ['HTML/CSS', 'JavaScript', 'ReactJS', 'TailwindCSS'],
     color: 'blue',
     class: '13DHTH02',
-    description: 'Sinh viên năm 4 ngành Công nghệ thông tin tại HUIT, đam mê lập trình và phát triển ứng dụng web, game',
+    description: 'Sinh viên năm 3 ngành Công nghệ thông tin tại HUIT, đam mê lập trình và phát triển ứng dụng web, game',
     detailedInfo: {
       projects: [
         'Website IconDenim',
@@ -150,7 +150,7 @@ const teamMembers = [
     skills: ['JavaScript', 'NodeJS', 'MongoDB', 'ExpressJS'],
     color: 'green',
     class: '13DHTH03',
-    description: 'Sinh viên năm 4 ngành Công nghệ thông tin tại HUIT, đam mê học hỏi và phát triển ứng dụng.',
+    description: 'Sinh viên năm 3 ngành Công nghệ thông tin tại HUIT, đam mê học hỏi và phát triển ứng dụng.',
     detailedInfo: {
       projects: [
         'Website IconDenim',
@@ -194,7 +194,7 @@ const teamMembers = [
     skills: ['JavaScript', 'SQL', 'MongoDB', 'System Design'],
     color: 'purple',
     class: '13DHTH03',
-    description: 'Sinh viên năm 4 ngành Công nghệ thông tin tại HUIT, đam mê công nghệ và phát triển hệ thống.',
+    description: 'Sinh viên năm 3 ngành Công nghệ thông tin tại HUIT, đam mê công nghệ và phát triển hệ thống.',
     detailedInfo: {
       projects: [
         'Website IconDenim',

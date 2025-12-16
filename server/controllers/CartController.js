@@ -73,15 +73,40 @@ class CartController {
                     let finalPrice = originalPrice;
                     let promotionDetails = null;
 
+                    // Bước 1: Áp dụng promotion/flashsale trước (nếu có)
+                    let priceAfterPromotion = originalPrice;
                     if (activePromotion) {
-                        const discountedValue = Math.round(originalPrice * (1 - activePromotion.discountPercent / 100));
-                        finalPrice = discountedValue;
+                        priceAfterPromotion = Math.round(originalPrice * (1 - activePromotion.discountPercent / 100));
+                        finalPrice = priceAfterPromotion;
                         promotionDetails = {
                             name: activePromotion.name,
                             discountPercent: activePromotion.discountPercent,
-                            discountedPrice: discountedValue.toLocaleString('vi-VN'),
+                            discountedPrice: priceAfterPromotion.toLocaleString('vi-VN'),
                             endDate: activePromotion.endDate
                         };
+                    }
+
+                    // Bước 2: Áp dụng combo discount lên giá đã giảm (nếu có)
+                    if (item.isCombo && item.comboDiscount > 0) {
+                        // Áp dụng combo discount lên giá đã có promotion
+                        const discountedValue = Math.round(priceAfterPromotion * (1 - item.comboDiscount / 100));
+                        finalPrice = discountedValue;
+                        
+                        // Cập nhật promotion details để hiển thị cả 2 loại giảm giá
+                        if (promotionDetails) {
+                            promotionDetails.comboDiscount = item.comboDiscount;
+                            promotionDetails.isCombo = true;
+                            promotionDetails.comboID = item.comboID;
+                            promotionDetails.finalComboPrice = discountedValue.toLocaleString('vi-VN');
+                        } else {
+                            promotionDetails = {
+                                name: `Combo Deal`,
+                                discountPercent: item.comboDiscount,
+                                discountedPrice: discountedValue.toLocaleString('vi-VN'),
+                                isCombo: true,
+                                comboID: item.comboID
+                            };
+                        }
                     }
 
                     // Tính tổng giá trị của mỗi sản phẩm
@@ -167,8 +192,72 @@ class CartController {
                 });
             }
 
-            // Thêm từng sản phẩm vào giỏ
+            // Tạo comboID duy nhất cho cặp sản phẩm này
+            const timestamp = Date.now();
+            const comboID = `COMBO_${timestamp}`;
+
+            // Tính toán % giảm giá cho combo
             const products = [product1, product2];
+            const productPrices = [];
+            const currentDate = new Date();
+
+            // Lấy giá của 2 sản phẩm (ưu tiên giá đã giảm nếu có promotion)
+            for (const product of products) {
+                const productInfo = await Product.findOne({ productID: product.productID })
+                    .populate(['targetInfo', 'categoryInfo']);
+                if (!productInfo) {
+                    return res.status(404).json({
+                        success: false,
+                        message: `Không tìm thấy sản phẩm #${product.productID}`
+                    });
+                }
+                
+                // Lấy giá gốc
+                const originalPrice = parseInt(productInfo.price.replace(/\./g, ''));
+                let finalPrice = originalPrice;
+
+                // Kiểm tra promotion/flashsale
+                const activePromotion = await Promotion.findOne({
+                    $or: [
+                        { products: productInfo._id },
+                        { categories: productInfo.categoryInfo.name }
+                    ],
+                    startDate: { $lte: currentDate },
+                    endDate: { $gte: currentDate },
+                    status: 'active'
+                }).sort({ discountPercent: -1 });
+
+                if (activePromotion) {
+                    finalPrice = Math.round(originalPrice * (1 - activePromotion.discountPercent / 100));
+                    console.log(`✅ Sản phẩm #${product.productID} có promotion ${activePromotion.discountPercent}%:`, {
+                        originalPrice,
+                        finalPrice,
+                        promotionName: activePromotion.name
+                    });
+                }
+
+                productPrices.push(finalPrice); // Dùng finalPrice thay vì originalPrice
+            }
+
+            const totalPrice = productPrices.reduce((sum, price) => sum + price, 0);
+            
+            // Logic giảm giá combo (áp dụng lên tổng giá đã giảm)
+            let comboDiscount = 0;
+            if (totalPrice >= 3000000) {
+                comboDiscount = 10;
+            } else if (totalPrice >= 1000000) {
+                comboDiscount = 5;
+            } else {
+                comboDiscount = 3;
+            }
+
+            console.log('💰 Combo pricing:', {
+                totalPrice,
+                comboDiscount: `${comboDiscount}%`,
+                comboID
+            });
+
+            // Thêm từng sản phẩm vào giỏ với thông tin combo
             const addedItems = [];
 
             for (const product of products) {
@@ -237,6 +326,10 @@ class CartController {
                     }
 
                     cartItem.quantity = newQuantity;
+                    // Cập nhật thông tin combo cho item đã có
+                    cartItem.isCombo = true;
+                    cartItem.comboID = comboID;
+                    cartItem.comboDiscount = comboDiscount;
                     await cartItem.save();
                 } else {
                     // Nếu chưa có thì thêm mới
@@ -247,7 +340,10 @@ class CartController {
                         cartID,
                         userID,
                         SKU,
-                        quantity: 1
+                        quantity: 1,
+                        isCombo: true,
+                        comboID: comboID,
+                        comboDiscount: comboDiscount
                     });
                     await cartItem.save();
                 }
@@ -256,7 +352,9 @@ class CartController {
                     productID: product.productID,
                     name: productInfo.name,
                     SKU,
-                    quantity: cartItem.quantity
+                    quantity: cartItem.quantity,
+                    isCombo: true,
+                    comboDiscount: comboDiscount
                 });
             }
 
@@ -264,8 +362,10 @@ class CartController {
 
             res.status(201).json({
                 success: true,
-                message: 'Đã thêm combo vào giỏ hàng',
-                items: addedItems
+                message: `Đã thêm combo vào giỏ hàng (Giảm ${comboDiscount}%)`,
+                items: addedItems,
+                comboID: comboID,
+                comboDiscount: comboDiscount
             });
 
         } catch (error) {
@@ -469,9 +569,40 @@ class CartController {
                 return res.status(404).json({ message: 'Không tìm thấy sản phẩm trong giỏ hàng' });
             }
 
+            // Kiểm tra xem sản phẩm này có phải là sản phẩm combo không
+            if (cartItem.isCombo && cartItem.comboID) {
+                console.log('🔍 Phát hiện xóa sản phẩm combo:', {
+                    cartID: cartItem.cartID,
+                    SKU: cartItem.SKU,
+                    comboID: cartItem.comboID
+                });
+
+                // Tìm tất cả sản phẩm khác cùng comboID
+                const otherComboItems = await Cart.find({
+                    userID,
+                    comboID: cartItem.comboID,
+                    cartID: { $ne: cartItem.cartID } // Không lấy sản phẩm đang xóa
+                });
+
+                console.log('📦 Các sản phẩm còn lại trong combo:', otherComboItems.length);
+
+                // Reset giá combo cho các sản phẩm còn lại
+                for (const otherItem of otherComboItems) {
+                    otherItem.isCombo = false;
+                    otherItem.comboID = null;
+                    otherItem.comboDiscount = 0;
+                    await otherItem.save();
+                    console.log('✅ Đã reset combo cho SKU:', otherItem.SKU);
+                }
+            }
+
+            // Xóa sản phẩm
             await cartItem.deleteOne();
 
-            res.json({ message: 'Xóa sản phẩm khỏi giỏ hàng thành công' });
+            res.json({ 
+                message: 'Xóa sản phẩm khỏi giỏ hàng thành công',
+                resetComboItems: cartItem.isCombo ? true : false
+            });
         } catch (error) {
             res.status(500).json({
                 message: 'Có lỗi xảy ra khi xóa sản phẩm khỏi giỏ hàng',
